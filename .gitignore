@@ -205,3 +205,179 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ============================================
+# MLOps & ML Frameworks
+# ============================================
+
+# Weights & Biases
+wandb/
+.wandb/
+wandb-*.log
+wandb-metadata.json
+wandb-summary.json
+
+# MLflow
+mlruns/
+mlartifacts/
+mlflow.db
+.mlflow/
+
+# DVC (Data Version Control)
+.dvc/
+*.dvc
+
+# Data directories (local caches)
+data/
+datasets/
+raw_data/
+processed_data/
+*.csv
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
+# Model files (checkpoints, weights)
+models/
+*.pth
+*.pt
+*.ckpt
+*.pb
+*.h5
+*.hdf5
+*.keras
+*.onnx
+*.tflite
+*.joblib
+saved_models/
+checkpoints/
+
+# Tensorboard
+tensorboard_logs/
+runs/
+logs/
+*.tfevents.*
+
+# Jupyter Notebooks outputs
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+*.ipynb_outputs/
+
+# ============================================
+# Environment & Credentials (SENSITIVE!)
+# ============================================
+
+# Environment variables
+.env
+.env.*
+.envrc
+!.env.example
+!.env.template
+
+# GCP Credentials
+*-key.json
+*-credentials.json
+credentials.json
+service-account*.json
+gcp-key.json
+google-credentials.json
+*.p12
+
+# AWS Credentials
+.aws/
+*.pem
+
+# API Keys & Secrets
+secrets/
+.secrets/
+*.key
+*.secret
+
+# ============================================
+# IDE & Editors
+# ============================================
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyCharm / IntelliJ
+.idea/
+
+# Vim
+*.swp
+*.swo
+*~
+.*.swp
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# Operating System
+# ============================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# ============================================
+# Temporary & Cache files
+# ============================================
+
+# Temp files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*~
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/
+cache/
+tmp/
+temp/
+
+# ============================================
+# Project specific
+# ============================================
+
+# Local configuration overrides
+config.local.yaml
+config.local.yml
+settings.local.py
+
+# Documentation builds
+docs/_build/
+docs/build/
+site/
+
+# Output artifacts
+outputs/
+artifacts/
+results/
