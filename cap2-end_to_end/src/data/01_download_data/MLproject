@@ -1,0 +1,46 @@
+name: download_data
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      file_url:
+        type: string
+        description: "URL of the dataset to download"
+      
+      artifact_name:
+        type: string
+        description: "Name of the artifact in W&B"
+      
+      artifact_type:
+        type: string
+        description: "Artifact type"
+      
+      artifact_description:
+        type: string
+        default: ""
+        description: "Artifact description"
+      
+      gcs_output_path:
+        type: string
+        default: "data/01-raw/housing.csv"
+        description: "Path in GCS (without gs://bucket/)"
+      
+      bucket_name:
+        type: string
+        description: "GCS bucket name"
+      
+      wandb_project:
+        type: string
+        default: "housing-mlops-gcp"
+        description: "W&B Project"
+    
+    command: |
+      python main.py \
+        --file_url {file_url} \
+        --artifact_name {artifact_name} \
+        --artifact_type {artifact_type} \
+        --artifact_description {artifact_description} \
+        --gcs_output_path {gcs_output_path} \
+        --bucket_name {bucket_name} \
+        --wandb_project {wandb_project}

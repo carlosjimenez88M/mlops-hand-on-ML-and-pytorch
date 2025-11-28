@@ -228,7 +228,7 @@ mlflow.db
 *.dvc
 
 # Data directories (local caches)
-data/
+
 datasets/
 raw_data/
 processed_data/

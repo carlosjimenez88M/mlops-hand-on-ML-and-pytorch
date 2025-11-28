@@ -1,0 +1,6 @@
+requests
+pip
+mlflow
+hydra-core
+wandb
+google-cloud-storage

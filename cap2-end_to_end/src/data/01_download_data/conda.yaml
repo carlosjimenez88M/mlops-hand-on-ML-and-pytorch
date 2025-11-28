@@ -1,0 +1,13 @@
+name: download_data
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python= 3.11
+  - pandas = 2.2.2
+  - requests
+  - pip 
+  - pip:
+      - wandb == 0.20.0
+      - google-cloud-storage
+      - python-dotenv
