@@ -1,7 +1,7 @@
 '''
 Step #1 - Download the data from GCS
 Description: Download the raw data directly to GCS bucket (no local storage).
-Author: Carlos Daniel Hernandez
+Author: Carlos Daniel Jiménez
 Date: 2025-11-25
 '''
 

@@ -1,0 +1,12 @@
+name: clean_data
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python= 3.13.2
+  - pandas = 2.2.2
+  - scikit-learn = 1.7.2
+  - pip:
+      - google-cloud-storage==3.6.0
+      - wandb==0.15.10
+      - python-dotenv==1.2.1
