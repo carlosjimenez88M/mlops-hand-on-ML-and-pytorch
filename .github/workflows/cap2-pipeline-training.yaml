@@ -52,9 +52,6 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           WANDB_PROJECT: ${{ vars.WANDB_PROJECT }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          WANDB_ENTITY: danieljimenez88m
-          WANDB_MODE: online
-          WANDB_SILENT: true
         run: |
           python src/data/01_download_data/main.py \
             --file_url "https://raw.githubusercontent.com/ageron/handson-ml2/master/datasets/housing/housing.tgz" \
