@@ -221,19 +221,29 @@ def main():
             logger.info(f"  min_samples_leaf: {best_run.config.get('min_samples_leaf')}")
             logger.info(f"  max_features: {best_run.config.get('max_features')}")
 
-            # Save best parameters to file
+            # Save best parameters to file (NO DEFAULTS - all must come from sweep)
             best_params_path = Path(__file__).parent / "best_params.yaml"
+
+            # Validate that all required hyperparameters are present
+            required_params = ['n_estimators', 'max_depth', 'min_samples_split', 'min_samples_leaf', 'max_features']
+            missing_params = [p for p in required_params if p not in best_run.config]
+            if missing_params:
+                raise ValueError(
+                    f"Missing required hyperparameters from sweep results: {missing_params}. "
+                    "All hyperparameters must be determined by the sweep, no defaults allowed."
+                )
+
             best_params = {
                 "sweep_id": sweep_id,
                 "best_run_id": best_run.id,
                 "best_run_name": best_run.name,
                 "hyperparameters": {
-                    "n_estimators": int(best_run.config.get('n_estimators', 100)),
-                    "max_depth": int(best_run.config.get('max_depth', 10)) if best_run.config.get('max_depth') else None,
-                    "min_samples_split": int(best_run.config.get('min_samples_split', 2)),
-                    "min_samples_leaf": int(best_run.config.get('min_samples_leaf', 1)),
-                    "max_features": best_run.config.get('max_features', 'sqrt'),
-                    "random_state": 42
+                    "n_estimators": int(best_run.config['n_estimators']),
+                    "max_depth": int(best_run.config['max_depth']) if best_run.config['max_depth'] else None,
+                    "min_samples_split": int(best_run.config['min_samples_split']),
+                    "min_samples_leaf": int(best_run.config['min_samples_leaf']),
+                    "max_features": best_run.config['max_features'],
+                    "random_state": 42  # Fixed for reproducibility, not a hyperparameter to optimize
                 },
                 "metrics": {
                     "mape": float(best_run.summary.get('mape', 0)),

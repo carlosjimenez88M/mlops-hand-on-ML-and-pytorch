@@ -98,11 +98,11 @@ def train_random_forest(
 
     model = RandomForestRegressor(
         n_estimators=params['n_estimators'],
-        max_depth=params.get('max_depth'),
+        max_depth=params.get('max_depth'),  # Can be None
         min_samples_split=params['min_samples_split'],
         min_samples_leaf=params['min_samples_leaf'],
-        max_features=params.get('max_features', 'sqrt'),
-        random_state=params.get('random_state', 42),
+        max_features=params['max_features'],  # No default - must come from sweep
+        random_state=params.get('random_state', 42),  # Fixed for reproducibility
         n_jobs=-1
     )
 
