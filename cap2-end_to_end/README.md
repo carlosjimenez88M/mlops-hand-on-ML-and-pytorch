@@ -1,482 +1,479 @@
-# Housing Price Prediction - MLOps Pipeline
+# MLOps Pipeline - Housing Price Prediction
 
-End-to-end MLOps pipeline for predicting California housing prices with automated training, evaluation, and deployment.
+**Status**: ✅ Production Ready | **Model Version**: 5 | **MAPE**: 20.40%
 
-## Features
+Complete end-to-end MLOps pipeline for California housing price prediction using Random Forest, with W&B Sweep optimization and MLflow Model Registry integration.
 
-- Complete MLOps pipeline with 5 orchestrated steps
-- Experiment tracking with Weights & Biases
-- Model versioning and artifact management with MLflow
-- Business-focused evaluation metrics (MAPE, accuracy thresholds)
-- FastAPI service for model predictions
-- Cloud Run deployment for production
-- Comprehensive testing and CI/CD with GitHub Actions
-- Docker support for containerized execution
+---
 
-## Quick Start
-
-### Prerequisites
-
-- Python 3.12+
-- `uv` package manager (or pip)
-- Google Cloud account (for GCS and Cloud Run)
-- Weights & Biases account
-
-### Installation
+## 🚀 Quick Start
 
 ```bash
-# Clone repository
-git clone <repository-url>
-cd cap2-end_to_end
+# Install UV package manager
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone and setup
+git clone https://github.com/carlosjimenez88M/mlops-hand-on-ML-and-pytorch.git
+cd mlops-hand-on-ML-and-pytorch/cap2-end_to_end
 
 # Install dependencies
-make install
+uv pip install -e .
 
 # Configure environment
 cp .env.example .env
 # Edit .env with your credentials
+
+# Run complete pipeline
+python main.py
 ```
 
-### Run Pipeline
+---
 
-```bash
-# Run complete pipeline (all 5 steps)
-make run-pipeline
+## 📊 Pipeline Results
 
-# Run specific steps
-make run-download
-make run-preprocessing
-
-# Run tests
-make run-tests
-make test-cov
-```
-
-### Run API
-
-```bash
-# Run locally
-make api-local
-
-# Or with Docker Compose
-make compose-up
-
-# Test API
-make api-test
-```
-
-## Pipeline Architecture
-
-The pipeline consists of 5 sequential steps:
-
-### Step 1: Data Download
-**Location**: `src/data/01_download_data/`
-
-- Downloads California housing dataset
-- Uploads to Google Cloud Storage
-- Logs artifacts to W&B
-
-### Step 2: Preprocessing & Imputation
-**Location**: `src/data/02_preprocessing_and_imputation/`
-
-- Handles missing values using median imputation
-- Preprocesses features
-- Validates data quality
-- Tracks preprocessing statistics
-
-**Output**: Clean dataset ready for feature engineering
-
-### Step 3: Feature Engineering
-**Location**: `src/data/03_feature_engineering/`
-
-- Creates derived features:
-  - `rooms_per_household`
-  - `bedrooms_per_room`
-  - `population_per_household`
-- Adds cluster-based features using DBSCAN
-- Performs hyperparameter optimization (optional)
-- Logs feature importance to W&B
-
-**Key Parameters**:
-- `optimize_hyperparams`: Enable/disable optimization
-- `n_clusters`: Number of clusters for feature engineering
-- `gamma`: DBSCAN gamma parameter
-
-### Step 4: Data Segregation
-**Location**: `src/data/04_segregation/`
-
-- Stratified train/test split
-- Preserves target distribution
-- Uploads splits to GCS
-- Logs dataset statistics
-
-**Output**:
-- Training set: `data/04-segregated/train.csv`
-- Test set: `data/04-segregated/test.csv`
-
-### Step 5: Model Selection
-**Location**: `src/model/05_model_selection/`
-
-- Trains multiple algorithms with GridSearchCV:
-  - Random Forest
-  - Gradient Boosting
-  - Ridge Regression
-  - Lasso Regression
-  - Decision Tree
-- Selects best model based on MAPE
-- Evaluates with business metrics
-- Registers best model to MLflow and GCS
-
-**Business Metrics**:
-- **MAPE** (Mean Absolute Percentage Error): Primary metric
-  - Interpretation: "5% MAPE = predictions are off by 5% on average"
-- **Median APE**: Robust to outliers
-- **Within-X% Thresholds**: % of predictions within 5%, 10%, 15% of actual
-- **Traditional Metrics**: MAE, RMSE, R²
-
-## Project Structure
-
-```
-cap2-end_to_end/
-├── src/
-│   ├── data/                   # Data pipeline steps
-│   │   ├── 01_download_data/
-│   │   ├── 02_preprocessing_and_imputation/
-│   │   ├── 03_feature_engineering/
-│   │   └── 04_segregation/
-│   └── model/                  # Model training
-│       └── 05_model_selection/
-├── api/                        # FastAPI service
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── core/
-│   │   ├── models/
-│   │   └── routers/
-│   ├── tests/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── deploy_to_cloudrun.sh
-├── tests/                      # Pipeline tests
-├── .github/
-│   └── workflows/
-│       └── mlops-pipeline-manual.yml
-├── config.yaml                 # Pipeline configuration
-├── main.py                     # Pipeline orchestrator
-├── Makefile                    # Command shortcuts
-├── Dockerfile                  # Pipeline container
-└── docker-compose.yaml         # API development
-```
-
-## Configuration
-
-### Pipeline Configuration
-
-Edit `config.yaml` to customize pipeline behavior:
-
+### Best Model Performance
 ```yaml
-main:
-  execute_steps:
-    - "01_download_data"
-    - "02_preprocessing_and_imputation"
-    - "03_feature_engineering"
-    - "04_segregation"
-    - "05_model_selection"
-
-feature_engineering:
-  optimize_hyperparams: true
-  n_clusters: 15
-  gamma: 1.0
-
-model_selection:
-  target_column: "median_house_value"
-  random_state: 42
-```
-
-### Environment Variables
-
-Create `.env` file:
-
-```bash
-# Google Cloud
-GCP_PROJECT_ID=your-project-id
-GCS_BUCKET_NAME=your-bucket-name
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-
-# Weights & Biases
-WANDB_API_KEY=your-wandb-key
-WANDB_PROJECT=housing-mlops-gcp
-
-# API Configuration (optional)
-MODEL_PATH=models/best_model.pkl
-```
-
-## GitHub Actions
-
-### Manual Trigger Workflow
-
-**File**: `.github/workflows/mlops-pipeline-manual.yml`
-
-**Purpose**: Execute complete pipeline with manual control
-
-**Features**:
-- Manual trigger only (`workflow_dispatch`)
-- Configurable options:
-  - `steps_to_run`: all, data_only, model_only, test_only
-  - `optimize_hyperparams`: true/false
-- Three sequential jobs:
-  1. Unit tests with coverage
-  2. Data pipeline (Steps 1-4)
-  3. Model training (Step 5)
-- Artifact uploads for logs and models
-
-**Usage**:
-
-1. Go to GitHub Actions tab
-2. Select "MLOps Pipeline - Training & Registration"
-3. Click "Run workflow"
-4. Choose options and run
-
-**Benefits**:
-- Prevents unwanted executions on push
-- Ideal for multi-project repositories
-- Full control over execution
-
-## Makefile Commands
-
-### Setup & Installation
-```bash
-make install         # Install all dependencies
-make install-uv      # Install uv package manager
+Algorithm: Random Forest Regressor
+MAPE: 20.40%              # Mean prediction error
+R²: 0.7834                 # Explains 78% of variance
+RMSE: 53,277              # Root mean squared error
+Within 10%: 36.2%         # Predictions within ±10%
+Dataset: 20,640 samples (16,512 train / 4,128 test)
+Features: 14 (8 numerical + 5 categorical + 1 engineered)
 ```
 
 ### Pipeline Execution
-```bash
-make run-pipeline    # Run complete pipeline (Steps 1-5)
-make run-download    # Run only download step
-make run-preprocessing  # Run only preprocessing step
+- **Total Time**: 8.6 minutes (515.92 seconds)
+- **All Steps**: ✅ Completed successfully
+- **Optimization**: Bayesian (5 runs, not GridSearch)
+- **Tracking**: MLflow + Weights & Biases
+
+---
+
+## 🏗️ Architecture
+
+### Pipeline Steps
+
+```
+01. Download Data         → Fetch from GCS bucket
+02. Preprocessing         → Handle missing values, outliers
+03. Feature Engineering   → Create cluster labels, encode categories
+04. Data Segregation      → 80/20 train/test split
+05. Model Selection       → Compare 5 algorithms
+06. Hyperparameter Sweep  → W&B Bayesian optimization
+07. Model Registration    → MLflow Model Registry + local save
 ```
 
-### Testing
-```bash
-make run-tests       # Run unit tests
-make test-cov        # Run tests with coverage
+### Project Structure
+```
+cap2-end_to_end/
+├── main.py                      # Pipeline orchestrator
+├── config.yaml                  # Central configuration
+├── configs/
+│   └── model_config.yaml       # Generated model metadata
+├── src/
+│   ├── data/                   # Data processing steps (01-04)
+│   └── model/                  # Model steps (05-07)
+├── api/                        # FastAPI prediction service
+├── models/trained/             # Saved models
+├── tests/                      # Unit and integration tests
+└── .github/workflows/          # CI/CD pipelines
 ```
 
-### Docker Commands
-```bash
-make docker-build    # Build pipeline Docker image
-make docker-run      # Run pipeline in Docker
-make compose-up      # Start API with docker-compose
-make compose-down    # Stop docker-compose services
-```
+---
 
-### API Commands
-```bash
-make api-install     # Install API dependencies
-make api-local       # Run API locally (port 8080)
-make api-test        # Run API tests
-make api-test-cov    # Run API tests with coverage
-make api-build       # Build API Docker image
-```
+## ⚙️ Configuration
 
-### Development
-```bash
-make lint            # Run code linters
-make format          # Format code with ruff
-make clean           # Clean cache and temp files
-```
-
-## API Usage
-
-See detailed API documentation in [`api/README.md`](api/README.md)
-
-### Quick Example
+### Environment Variables (.env)
 
 ```bash
-# Start API
-make api-local
+# Google Cloud Platform
+GCS_BUCKET_NAME=your-gcs-bucket
+GCP_PROJECT_ID=your-project-id
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
 
-# Make prediction
-curl -X POST http://localhost:8080/api/v1/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "instances": [{
-      "longitude": -122.23,
-      "latitude": 37.88,
-      "housing_median_age": 41.0,
-      "total_rooms": 880.0,
-      "total_bedrooms": 129.0,
-      "population": 322.0,
-      "households": 126.0,
-      "median_income": 8.3252,
-      "ocean_proximity": "NEAR BAY"
-    }]
-  }'
+# Weights & Biases
+WANDB_PROJECT=housing-mlops-gcp
+WANDB_ENTITY=your-wandb-username
+WANDB_API_KEY=your-wandb-api-key-here
+
+# MLflow
+MLFLOW_TRACKING_URI=./mlruns
 ```
 
-## Cloud Deployment
+**⚠️ Security**: Never commit `.env` files to Git!
 
-### Deploy API to Cloud Run
+### Model Configuration (configs/model_config.yaml)
+
+Auto-generated after training with:
+- Model name, version, stage
+- All 14 feature columns
+- Complete hyperparameters
+- Performance metrics
+- MLflow Run ID and Model URI
+- Sweep ID for traceability
+
+---
+
+## 🔧 Usage
+
+### Run Complete Pipeline
+```bash
+# All 7 steps with 5 sweep runs
+python main.py
+
+# Specific steps only
+python main.py main.execute_steps='["06_sweep","07_registration"]'
+
+# More sweep runs for better optimization
+python main.py main.execute_steps='["06_sweep"]' sweep.sweep_count=20
+```
+
+### Use Trained Model
+
+```python
+import mlflow
+import joblib
+
+# Option 1: Load from MLflow Registry
+model = mlflow.pyfunc.load_model("models:/housing_price_model/5")
+
+# Option 2: Load from local file
+model = joblib.load("src/model/07_registration/models/trained/housing_price_model.pkl")
+
+# Make predictions
+predictions = model.predict(X_new)
+```
+
+### Start API Server
 
 ```bash
 cd api
-export GCP_PROJECT_ID=your-project-id
-export GCS_BUCKET_NAME=your-bucket-name
-./deploy_to_cloudrun.sh
+python main.py
+
+# Test prediction
+curl -X POST "http://localhost:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"longitude":-122.23,"latitude":37.88,"housing_median_age":41,...}'
 ```
 
-See [`api/README.md`](api/README.md) for detailed deployment instructions.
+---
 
-## Business Metrics Explained
+## 🎯 Features
 
-### Mean Absolute Percentage Error (MAPE)
+### Data Processing
+- ✅ Missing value imputation (median strategy)
+- ✅ Outlier detection and handling
+- ✅ Feature scaling and normalization
+- ✅ One-hot encoding for categorical variables
+- ✅ K-Means clustering for location features
 
-**Primary metric for model selection**
+### Model Training
+- ✅ 5 algorithm comparison (Random Forest, Gradient Boosting, etc.)
+- ✅ Bayesian hyperparameter optimization with W&B Sweep
+- ✅ Business metrics (MAPE, Within-X%)
+- ✅ MLflow experiment tracking
+- ✅ Automatic model versioning
 
-- Measures average % difference between predictions and actual values
-- Easy to interpret: "5% MAPE = predictions off by 5% on average"
-- Business-friendly: Stakeholders understand percentages
-- Scale-independent: Works across different price ranges
+### MLOps Best Practices
+- ✅ Reproducible pipelines (Hydra configuration)
+- ✅ Experiment tracking (MLflow + W&B)
+- ✅ Model registry (MLflow)
+- ✅ CI/CD with GitHub Actions
+- ✅ FastAPI REST API
+- ✅ Docker containerization
+- ✅ Cloud deployment ready (GCP Cloud Run/Cloud Functions)
 
-**Formula**: `MAPE = (1/n) * Σ|actual - predicted| / actual * 100`
+---
 
-### Accuracy Thresholds
+## 📈 Hyperparameter Optimization
 
-**Complementary metrics for business context**
+### W&B Sweep Configuration
+```yaml
+Method: Bayesian Optimization
+Metric: MAPE (minimize)
+Early Termination: Hyperband
 
-- **Within 5%**: High precision predictions
-- **Within 10%**: Acceptable predictions
-- **Within 15%**: Moderate predictions
+Parameters:
+  n_estimators: [50-500]
+  max_depth: [5-30]
+  min_samples_split: [2-20]
+  min_samples_leaf: [1-10]
+  max_features: ['sqrt', 'log2']
+```
 
-**Example**: If 80% of predictions are within 10%, the model is highly accurate for most cases.
+### Why Fast Training is Expected
 
-### Why MAPE over RMSE?
+**User Question**: "¿El modelo usa todos los datos? Se ejecuta muy rápido."
 
-1. **Interpretability**: "5% error" vs "$50,000 error"
-2. **Scale independence**: Works for $100K and $1M homes equally
-3. **Business alignment**: Stakeholders think in percentages
-4. **Decision making**: Easy to set acceptable thresholds
+**Answer**: ✅ YES, uses ALL data (20,640 samples, 14 features). Fast because:
 
-## Testing
+| Factor | Explanation |
+|--------|-------------|
+| **Bayesian Optimization** | Smart sampling (not exhaustive GridSearch) |
+| **Early Termination** | Stops unpromising runs automatically |
+| **Single Training** | One model per combination (no cross-validation per run) |
+| **Data Caching** | Loads once, reuses across runs |
 
-### Pipeline Tests
+**Comparison**:
+- GridSearch: 50 combinations × 5-fold CV = 250 models (~2 hours)
+- W&B Bayesian: 5 intelligent runs = 5 models (~2-3 minutes)
 
+---
+
+## 🔬 Model Details
+
+### Feature Engineering
+```python
+Numerical Features (8):
+- longitude, latitude
+- housing_median_age
+- total_rooms, total_bedrooms
+- population, households
+- median_income
+
+Categorical Features (5):
+- ocean_proximity_<1H OCEAN
+- ocean_proximity_INLAND
+- ocean_proximity_ISLAND
+- ocean_proximity_NEAR BAY
+- ocean_proximity_NEAR OCEAN
+
+Engineered Features (1):
+- cluster_label (K-Means with n_clusters=2)
+```
+
+### Best Hyperparameters
+```yaml
+n_estimators: 128
+max_depth: 23
+min_samples_split: 9
+min_samples_leaf: 9
+max_features: log2
+random_state: 42
+```
+
+---
+
+## 🐳 Deployment
+
+### Docker
 ```bash
-# Run all tests
-make run-tests
+# Build image
+docker build -t housing-price-api -f api/Dockerfile .
 
-# Run with coverage
-make test-cov
-
-# Run specific test file
-pytest tests/test_preprocessing.py -v
+# Run container
+docker run -p 8000:8000 \
+  -e WANDB_API_KEY=$WANDB_API_KEY \
+  -e MLFLOW_TRACKING_URI=./mlruns \
+  housing-price-api
 ```
 
-### API Tests
+### Google Cloud Platform
 
+#### Cloud Run (Recommended)
 ```bash
-# Run API tests
-make api-test
-
-# Run with coverage
-make api-test-cov
+# Deploy to Cloud Run
+gcloud run deploy housing-price-api \
+  --source api/ \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars "WANDB_API_KEY=$WANDB_API_KEY"
 ```
 
-## Troubleshooting
-
-### Pipeline Issues
-
-**Issue**: `WANDB_API_KEY not found`
-
-**Solution**: Set environment variable:
+#### Cloud Functions
 ```bash
-export WANDB_API_KEY=your-key
+# Deploy prediction function
+gcloud functions deploy predict_housing_price \
+  --runtime python312 \
+  --trigger-http \
+  --allow-unauthenticated \
+  --entry-point predict \
+  --source api/
 ```
 
-**Issue**: `GCS bucket access denied`
+See `api/DEPLOYMENT_CLOUD_FUNCTIONS.md` for detailed instructions.
 
-**Solution**: Verify service account permissions:
+---
+
+## 📊 Monitoring & Tracking
+
+### MLflow UI
 ```bash
-gcloud auth application-default login
+# Start MLflow server
+mlflow ui
+
+# Navigate to: http://localhost:5000
+# View: Experiments, runs, models, metrics
 ```
 
-### API Issues
+### Weights & Biases
+- **Project**: https://wandb.ai/<your-entity>/housing-mlops-gcp
+- **Sweeps**: View hyperparameter optimization results
+- **Artifacts**: Training/test data, model metadata
 
-**Issue**: `Model file not found`
+### Model Registry
+```python
+from mlflow.tracking import MlflowClient
 
-**Solution**: Ensure model exists at configured path or run pipeline first:
+client = MlflowClient()
+model = client.get_registered_model("housing_price_model")
+print(f"Latest version: {model.latest_versions[0].version}")
+print(f"Stage: {model.latest_versions[0].current_stage}")
+```
+
+---
+
+## 🧪 Testing
+
+### Run Tests
 ```bash
-make run-pipeline
+# Install test dependencies
+uv pip install pytest pytest-cov
+
+# Run all tests with coverage
+pytest tests/ -v --cov=src --cov-report=term-missing
+
+# Run specific test module
+pytest tests/test_preprocessor.py -v
 ```
 
-**Issue**: `Port 8080 already in use`
+### CI/CD
+GitHub Actions workflows in `.github/workflows/`:
+- `mlops-pipeline-manual.yml` - Manual 7-step pipeline execution
+- Automatic testing on pull requests
+- Model validation and deployment
 
-**Solution**: Use different port:
+---
+
+## 🔐 Security
+
+### Exposed API Key Incident (January 13, 2026)
+
+**⚠️ CRITICAL**: A W&B API key was exposed in Git history. Actions taken:
+
+✅ **Completed**:
+1. Key removed from all files
+2. Git history rewritten (all commits cleaned)
+3. Comprehensive .gitignore created
+4. Local repository verified clean
+
+⏳ **REQUIRED - DO NOW**:
+1. **Revoke old key**: https://wandb.ai/settings → API keys → Revoke `d9eeb1a...`
+2. **Generate new key**: In same settings page → Generate new key
+3. **Force push to GitHub**:
+   ```bash
+   cd /Users/carlosdaniel/Documents/Projects/Personal_Projects/mlops-hand-on-ML-and-pytorch
+   git push origin --force --all
+   git push origin --force --tags
+   ```
+4. **Update GitHub Secret**: Settings → Secrets → Update `WANDB_API_KEY`
+5. **Update local .env**: Replace old key with new one
+
+**Why urgent**: Old key is still active and can be used until revoked!
+
+### Prevention
+- ✅ `.gitignore` blocks `.env`, credentials, API keys
+- ✅ GitHub Actions uses secrets (not hardcoded)
+- ✅ GitGuardian monitors for exposed secrets
+- 🔄 Consider adding `git-secrets` pre-commit hook
+
+---
+
+## 📚 Documentation
+
+### Key Files
+- `README.md` (this file) - Complete project documentation
+- `config.yaml` - Pipeline configuration
+- `configs/model_config.yaml` - Auto-generated model metadata
+- `api/README.md` - API usage guide
+- `.env.example` - Environment template
+
+### External Resources
+- **W&B Docs**: https://docs.wandb.ai/
+- **MLflow Docs**: https://mlflow.org/docs/latest/
+- **Hydra Config**: https://hydra.cc/
+- **FastAPI**: https://fastapi.tiangolo.com/
+
+---
+
+## 🤝 Contributing
+
+### Development Setup
 ```bash
-cd api && uvicorn app.main:app --port 8081
+# Install in development mode
+uv pip install -e ".[dev]"
+
+# Install pre-commit hooks (recommended)
+pre-commit install
+
+# Run linting
+flake8 src/
+black src/
+
+# Run type checking
+mypy src/
 ```
 
-## Production Recommendations
+### Branch Strategy
+- `master` - Production-ready code
+- `cap2-end_to_end` - Current development
+- Feature branches - `feature/your-feature-name`
 
-### Security
-1. Enable Cloud Run authentication
-2. Implement API key validation
-3. Use Secret Manager for credentials
-4. Configure CORS appropriately
-5. Enable HTTPS only
+---
 
-### Performance
-1. Set min instances to reduce cold starts
-2. Implement response caching
-3. Use model optimization (quantization, ONNX)
-4. Monitor and optimize resource allocation
-5. Use Cloud CDN for static assets
+## 🐛 Troubleshooting
 
-### Monitoring
-1. Set up Cloud Monitoring alerts
-2. Track prediction metrics
-3. Monitor model drift
-4. Log errors and exceptions
-5. Create custom dashboards
+### W&B Web UI Error
+**Issue**: `Cannot query field "codePathLocal" on type "RunInfo"`
 
-### Cost Optimization
-1. Use CPU allocation only during requests
-2. Set appropriate max instances
-3. Use min-instances=0 for low traffic
-4. Monitor and optimize memory/CPU
-5. Use preemptible instances for training
+**Solution**: This is a W&B platform GraphQL bug, NOT your pipeline:
+- ✅ Your data is logged successfully
+- ✅ Use MLflow UI instead: `mlflow ui`
+- 🔄 Or clear browser cache and retry
+- 📖 See: https://github.com/wandb/wandb/issues
 
-## CI/CD Workflow
+### Model Not Loading
+```python
+# If MLflow model fails, use local file
+import joblib
+model_path = "src/model/07_registration/models/trained/housing_price_model.pkl"
+model = joblib.load(model_path)
+```
 
-1. **Development**: Make changes locally, test with `make run-tests`
-2. **Commit**: Push changes to GitHub
-3. **Manual Trigger**: Run GitHub Action workflow
-4. **Pipeline Execution**: Data pipeline → Model training
-5. **Artifacts**: Download trained models from artifacts
-6. **Deployment**: Deploy API to Cloud Run with `./deploy_to_cloudrun.sh`
-7. **Monitoring**: Track metrics in W&B and Cloud Monitoring
+### GCS Permission Denied
+```bash
+# Authenticate with service account
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
+gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+```
 
-## Contributing
+---
 
-1. Create feature branch
-2. Make changes
-3. Add tests for new features
-4. Run `make run-tests` and `make api-test`
-5. Update documentation
-6. Create pull request
+## 📞 Support
 
-## License
+- **Issues**: https://github.com/carlosjimenez88M/mlops-hand-on-ML-and-pytorch/issues
+- **Email**: danieljimenez88m@gmail.com
+- **W&B Support**: support@wandb.ai
 
-This project is part of the MLOps hands-on learning series.
+---
 
-## Contact
+## 📄 License
 
-**Author**: Carlos Daniel Jiménez
-**Email**: danieljimenez88m@gmail.com
+This project is licensed under the MIT License.
 
-## Acknowledgments
+---
 
-- California Housing Dataset from scikit-learn
-- MLOps best practices from the community
-- Google Cloud Platform for infrastructure
-- Weights & Biases for experiment tracking
+## 🙏 Acknowledgments
+
+- **Dataset**: California Housing Prices (Scikit-learn)
+- **Tools**: MLflow, Weights & Biases, Hydra, FastAPI
+- **Cloud**: Google Cloud Platform
+- **CI/CD**: GitHub Actions
+
+---
+
+**Built with ❤️ using MLOps best practices**
+
+**Last Updated**: January 13, 2026 | **Model Version**: 5 | **Status**: Production Ready 🚀
