@@ -26,6 +26,49 @@ PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
+def validate_environment_variables() -> None:
+    """
+    Validate that required environment variables are set before pipeline execution.
+    Raises SystemExit if critical variables are missing.
+    """
+    required_vars = {
+        "GCP_PROJECT_ID": "Google Cloud Project ID",
+        "GCS_BUCKET_NAME": "Google Cloud Storage Bucket Name",
+        "WANDB_API_KEY": "Weights & Biases API Key",
+        "WANDB_PROJECT": "Weights & Biases Project Name",
+    }
+
+    missing_vars = []
+    for var, description in required_vars.items():
+        value = os.getenv(var)
+        if not value or value == "your-wandb-api-key-here" or value == "":
+            missing_vars.append(f"  - {var}: {description}")
+
+    if missing_vars:
+        print("\n" + "=" * 70)
+        print("  CONFIGURATION ERROR")
+        print("=" * 70)
+        print("\nThe following required environment variables are missing or invalid:\n")
+        print("\n".join(missing_vars))
+        print("\nPlease set these variables in your .env file or environment.")
+        print("\nExample .env file:")
+        print("-" * 70)
+        print("GCP_PROJECT_ID=your-project-id")
+        print("GCS_BUCKET_NAME=your-bucket-name")
+        print("WANDB_API_KEY=your-actual-wandb-key")
+        print("WANDB_PROJECT=your-project-name")
+        print("-" * 70)
+        print("\nNote: You can find your W&B API key at https://wandb.ai/settings")
+        print("=" * 70 + "\n")
+        sys.exit(1)
+
+    print("\n" + "=" * 70)
+    print("  ENVIRONMENT VALIDATION PASSED")
+    print("=" * 70)
+    print("All required environment variables are set.")
+    print("=" * 70 + "\n")
+
+
 def setup_environment(config: DictConfig) -> None:
     """
     Setup environment variables for the pipeline execution.
@@ -326,6 +369,9 @@ def go(config: DictConfig) -> None:
     Args:
         config: Hydra configuration loaded from config.yaml
     """
+    # Validate required environment variables before starting
+    validate_environment_variables()
+
     # Setup environment
     setup_environment(config)
 
