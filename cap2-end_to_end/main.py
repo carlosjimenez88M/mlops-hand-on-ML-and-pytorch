@@ -171,6 +171,7 @@ def run_feature_engineering(config: DictConfig, root_path: Path) -> None:
             "n_clusters": config["feature_engineering"]["n_clusters"],
             "gamma": config["feature_engineering"]["gamma"],
             "random_state": config["feature_engineering"]["random_state"],
+            "optimize_hyperparams": config["feature_engineering"]["optimize_hyperparams"],
         },
     )
 

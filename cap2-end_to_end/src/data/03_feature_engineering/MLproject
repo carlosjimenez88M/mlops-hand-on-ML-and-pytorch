@@ -55,6 +55,11 @@ entry_points:
         default: 42
         description: "Random state for reproducibility"
 
+      optimize_hyperparams:
+        type: string
+        default: "True"
+        description: "Whether to optimize n_clusters and gamma (True/False)"
+
     command: |
       python main.py \
         --input_artifact_name {input_artifact_name} \
@@ -67,4 +72,5 @@ entry_points:
         --wandb_project {wandb_project} \
         --n_clusters {n_clusters} \
         --gamma {gamma} \
-        --random_state {random_state}
+        --random_state {random_state} \
+        --optimize_hyperparams {optimize_hyperparams}

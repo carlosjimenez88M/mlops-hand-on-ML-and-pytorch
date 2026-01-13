@@ -105,7 +105,17 @@ def main():
         help="Random state for reproducibility"
     )
 
+    parser.add_argument(
+        "--optimize_hyperparams",
+        type=str,
+        default="True",
+        help="Whether to optimize n_clusters and gamma (True/False)"
+    )
+
     args = parser.parse_args()
+
+    # Convert string to boolean
+    optimize_hyperparams = args.optimize_hyperparams.lower() in ['true', '1', 'yes']
 
     logger.info("=" * 70)
     logger.info("STEP 3: FEATURE ENGINEERING")
@@ -116,6 +126,7 @@ def main():
     logger.info(f"  W&B Project: {args.wandb_project}")
     logger.info(f"  N Clusters: {args.n_clusters}")
     logger.info(f"  Gamma: {args.gamma}")
+    logger.info(f"  Optimize Hyperparams: {optimize_hyperparams}")
 
     run = wandb.init(
         project=args.wandb_project,
@@ -140,16 +151,29 @@ def main():
 
         engineer = FeatureEngineer(config)
 
-        result_data = engineer.run()
+        result_data = engineer.run(optimize_hyperparams=optimize_hyperparams)
 
         logger.info("Logging to W&B...")
-        wandb.log({
+        log_data = {
             "input_shape": result_data["df_shape"],
             "features_added": result_data["result"].features_added,
-            "n_clusters": args.n_clusters,
-            "gamma": args.gamma,
-            "gcs_output_uri": result_data["gcs_uri"]
-        })
+            "gcs_output_uri": result_data["gcs_uri"],
+            "optimization_enabled": result_data["optimization_enabled"]
+        }
+
+        if result_data["optimization_enabled"]:
+            log_data.update({
+                "optimized_n_clusters": result_data["cluster_metrics"]["optimal_n_clusters"],
+                "optimized_gamma": result_data["gamma_metrics"]["optimal_gamma"],
+                "best_silhouette_score": result_data["cluster_metrics"]["best_silhouette"],
+            })
+        else:
+            log_data.update({
+                "n_clusters": args.n_clusters,
+                "gamma": args.gamma,
+            })
+
+        wandb.log(log_data)
 
         artifact = wandb.Artifact(
             name=args.artifact_name,

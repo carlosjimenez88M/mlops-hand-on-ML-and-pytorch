@@ -77,6 +77,7 @@ feature_engineering:
   n_clusters: 10
   gamma: 0.1
   random_state: 42
+  optimize_hyperparams: "True"  # Set to "False" to disable optimization
 
 # Data Segregation (Train/Test Split)
 segregation:

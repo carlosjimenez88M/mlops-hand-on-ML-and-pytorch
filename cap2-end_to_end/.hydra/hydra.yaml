@@ -111,11 +111,12 @@ hydra:
   overrides:
     hydra:
     - hydra.mode=RUN
-    task: []
+    task:
+    - main.execute_steps=["03_feature_engineering"]
   job:
     name: main
     chdir: false
-    override_dirname: ''
+    override_dirname: main.execute_steps=["03_feature_engineering"]
     id: ???
     num: ???
     config_name: config
