@@ -10,6 +10,7 @@ import sys
 
 from app.core.config import Settings
 from app.core.model_loader import ModelLoader
+from app.core.wandb_logger import WandBLogger
 from app.routers import predict
 from app.models.schemas import HealthResponse
 
@@ -34,6 +35,13 @@ async def lifespan(app: FastAPI):
     """
     logger.info("Starting up API...")
 
+    # Initialize W&B logger
+    wandb_logger = WandBLogger(
+        project=settings.WANDB_PROJECT,
+        enabled=True
+    )
+    predict.set_wandb_logger(wandb_logger)
+
     # Initialize model loader
     model_loader = ModelLoader(
         local_model_path=settings.MODEL_PATH,
@@ -52,6 +60,7 @@ async def lifespan(app: FastAPI):
 
         # Store in app state
         app.state.model_loader = model_loader
+        app.state.wandb_logger = wandb_logger
 
     except Exception as e:
         logger.error(f"Failed to load model: {str(e)}")
@@ -61,6 +70,7 @@ async def lifespan(app: FastAPI):
 
     # Cleanup on shutdown
     logger.info("Shutting down API...")
+    wandb_logger.close()
 
 
 # Create FastAPI application

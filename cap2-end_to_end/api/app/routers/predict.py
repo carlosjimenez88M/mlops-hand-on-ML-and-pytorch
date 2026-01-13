@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 import pandas as pd
 import logging
+import time
 
 from app.models.schemas import (
     PredictionRequest,
@@ -13,19 +14,27 @@ from app.models.schemas import (
     ErrorResponse
 )
 from app.core.model_loader import ModelLoader
+from app.core.wandb_logger import WandBLogger
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["predictions"])
 
-# Global model loader instance (initialized in main.py)
+# Global instances (initialized in main.py)
 model_loader: ModelLoader = None
+wandb_logger: WandBLogger = None
 
 
 def set_model_loader(loader: ModelLoader) -> None:
     """Set the global model loader instance."""
     global model_loader
     model_loader = loader
+
+
+def set_wandb_logger(logger_instance: WandBLogger) -> None:
+    """Set the global W&B logger instance."""
+    global wandb_logger
+    wandb_logger = logger_instance
 
 
 @router.post(
@@ -59,9 +68,11 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
             detail="Model not loaded"
         )
 
+    start_time = time.time()
+    features_list = []
+
     try:
         # Convert input features to DataFrame
-        features_list = []
         for instance in request.instances:
             features_list.append({
                 'longitude': instance.longitude,
@@ -80,6 +91,9 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
         # Make predictions
         predictions = model_loader.predict(df)
 
+        # Calculate response time
+        response_time_ms = (time.time() - start_time) * 1000
+
         # Format response
         results = [
             PredictionResult(
@@ -89,6 +103,15 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
             for pred in predictions
         ]
 
+        # Log to W&B
+        if wandb_logger:
+            wandb_logger.log_prediction(
+                features=features_list,
+                predictions=[float(p) for p in predictions],
+                model_version=model_loader.model_version,
+                response_time_ms=response_time_ms
+            )
+
         return PredictionResponse(
             predictions=results,
             model_version=model_loader.model_version
@@ -96,12 +119,16 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
 
     except ValueError as e:
         logger.error(f"Validation error: {str(e)}")
+        if wandb_logger:
+            wandb_logger.log_error("validation_error", str(e), features_list)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid input data: {str(e)}"
         )
     except Exception as e:
         logger.error(f"Prediction failed: {str(e)}")
+        if wandb_logger:
+            wandb_logger.log_error("prediction_error", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Prediction failed: {str(e)}"

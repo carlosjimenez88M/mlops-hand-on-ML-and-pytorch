@@ -12,6 +12,9 @@ scikit-learn==1.6.1
 # Cloud integration
 google-cloud-storage==2.19.0
 
+# Experiment tracking
+wandb==0.19.1
+
 # Testing
 pytest==8.3.4
 pytest-cov==6.0.0

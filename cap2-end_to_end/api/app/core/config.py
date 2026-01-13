@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     GCS_BUCKET: str = ""
     GCS_MODEL_PATH: str = "models/05-selection/randomforest_best.pkl"
 
+    # Weights & Biases
+    WANDB_API_KEY: str = ""
+    WANDB_PROJECT: str = "housing-mlops-api"
+
     class Config:
         env_file = ".env"
         case_sensitive = True
