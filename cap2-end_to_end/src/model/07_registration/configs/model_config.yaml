@@ -1,0 +1,37 @@
+model:
+  best_model: RandomForest
+  feature_columns:
+  - longitude
+  - latitude
+  - housing_median_age
+  - total_rooms
+  - total_bedrooms
+  - population
+  - households
+  - median_income
+  - ocean_proximity_<1H OCEAN
+  - ocean_proximity_INLAND
+  - ocean_proximity_ISLAND
+  - ocean_proximity_NEAR BAY
+  - ocean_proximity_NEAR OCEAN
+  - cluster_label
+  local_path: models/trained/housing_price_model.pkl
+  mae: 36119.02402386175
+  mape: 20.4002041040709
+  mlflow_model_uri: runs:/753f7d8dbdaa4752b3f44285b13ddc07/model
+  mlflow_run_id: 753f7d8dbdaa4752b3f44285b13ddc07
+  name: housing_price_model
+  num_features: 14
+  parameters:
+    max_depth: 23
+    max_features: log2
+    min_samples_leaf: 9
+    min_samples_split: 9
+    n_estimators: 128
+    random_state: 42
+  r2_score: 0.7833927272721485
+  rmse: 53277.02271475498
+  stage: Staging
+  sweep_id: f73ao31m
+  target_variable: median_house_value
+  version: '3'

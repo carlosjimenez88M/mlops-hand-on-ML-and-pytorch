@@ -1,0 +1,16 @@
+sweep_id: f73ao31m
+best_run_id: 5q1840qa
+best_run_name: dry-sweep-5
+hyperparameters:
+  n_estimators: 128
+  max_depth: 23
+  min_samples_split: 9
+  min_samples_leaf: 9
+  max_features: log2
+  random_state: 42
+metrics:
+  mape: 20.4002
+  rmse: 53277.02271
+  r2: 0.78339
+  within_10pct: 36.2
+sweep_url: https://wandb.ai/danieljimenez88m-carlosdanieljimenez-com/housing-mlops-gcp/sweeps/f73ao31m

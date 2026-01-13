@@ -1,0 +1,41 @@
+# =================================================================
+# W&B Sweep Configuration for Random Forest Hyperparameter Tuning
+# Based on: https://wandb.ai/aman-arora/mlops-course-001/reports/Random-Forest-Regression
+# Author: Carlos Daniel Jiménez
+# =================================================================
+
+program: main.py
+method: bayes  # Bayesian optimization for efficient search
+metric:
+  name: mape  # Mean Absolute Percentage Error (business-friendly metric)
+  goal: minimize
+
+parameters:
+  n_estimators:
+    min: 50
+    max: 500
+
+  max_depth:
+    min: 5
+    max: 30
+
+  min_samples_split:
+    min: 2
+    max: 20
+
+  min_samples_leaf:
+    min: 1
+    max: 10
+
+  max_features:
+    values: ['sqrt', 'log2']
+
+# Early stopping to save compute
+early_terminate:
+  type: hyperband
+  min_iter: 5
+  eta: 2
+  s: 2
+
+name: housing-rf-sweep
+description: "Optimize Random Forest hyperparameters for house price prediction"

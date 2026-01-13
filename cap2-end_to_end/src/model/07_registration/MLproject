@@ -1,0 +1,16 @@
+name: model_registration
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      bucket_name: {type: string}
+      gcs_train_path: {type: string}
+      gcs_test_path: {type: string}
+      best_params_path: {type: string}
+      registered_model_name: {type: string, default: "housing_price_model"}
+      model_stage: {type: string, default: "Staging"}
+      target_column: {type: string, default: "median_house_value"}
+      wandb_project: {type: string}
+
+    command: "python main.py --bucket_name {bucket_name} --gcs_train_path {gcs_train_path} --gcs_test_path {gcs_test_path} --best_params_path {best_params_path} --registered_model_name {registered_model_name} --model_stage {model_stage} --target_column {target_column} --wandb_project {wandb_project}"

@@ -475,6 +475,26 @@ class FeatureEngineer:
 
         logger.info("Optimization results logged to W&B successfully")
 
+    def calculate_silhouette_score(self, df: pd.DataFrame) -> float:
+        """
+        Calculate silhouette score for current configuration.
+        Used for sweep evaluation.
+        """
+        from sklearn.cluster import KMeans
+        from sklearn.metrics import silhouette_score
+
+        geo_features = df[["latitude", "longitude"]].values
+        kmeans = KMeans(
+            n_clusters=self.config.n_clusters,
+            n_init=10,
+            random_state=self.config.random_state
+        )
+        labels = kmeans.fit_predict(geo_features)
+        score = silhouette_score(geo_features, labels)
+
+        logger.info(f"Silhouette score for n_clusters={self.config.n_clusters}: {score:.4f}")
+        return score
+
     def run(self, optimize_hyperparams: bool = True) -> Dict[str, any]:
         """Execute complete feature engineering workflow."""
         try:
@@ -487,6 +507,7 @@ class FeatureEngineer:
             cluster_metrics = None
             gamma_metrics = None
             optimization_figures = None
+            silhouette_score = None
 
             # Hyperparameter optimization
             if optimize_hyperparams:
@@ -527,6 +548,10 @@ class FeatureEngineer:
                     gamma_metrics,
                     optimization_figures
                 )
+            else:
+                # For sweep: calculate silhouette score for current params
+                logger.info("\nCalculating silhouette score for current configuration...")
+                silhouette_score = self.calculate_silhouette_score(df)
 
             df_transformed, result = self.transform_data(df)
 
@@ -550,7 +575,8 @@ class FeatureEngineer:
                 "df_shape": df_transformed.shape,
                 "cluster_metrics": cluster_metrics,
                 "gamma_metrics": gamma_metrics,
-                "optimization_enabled": optimize_hyperparams
+                "optimization_enabled": optimize_hyperparams,
+                "silhouette_score": silhouette_score
             }
 
         except Exception as e:

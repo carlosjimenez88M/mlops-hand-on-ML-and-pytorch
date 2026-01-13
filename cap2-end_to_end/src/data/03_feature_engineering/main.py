@@ -165,13 +165,16 @@ def main():
             log_data.update({
                 "optimized_n_clusters": result_data["cluster_metrics"]["optimal_n_clusters"],
                 "optimized_gamma": result_data["gamma_metrics"]["optimal_gamma"],
-                "best_silhouette_score": result_data["cluster_metrics"]["best_silhouette"],
+                "optimization/silhouette_score": result_data["cluster_metrics"]["best_silhouette"],
             })
         else:
             log_data.update({
                 "n_clusters": args.n_clusters,
                 "gamma": args.gamma,
             })
+            # Log silhouette score for sweep evaluation
+            if result_data["silhouette_score"] is not None:
+                log_data["optimization/silhouette_score"] = result_data["silhouette_score"]
 
         wandb.log(log_data)
 

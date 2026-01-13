@@ -7,16 +7,18 @@ main:
   - 03_feature_engineering
   - 04_segregation
   - 05_model_selection
+  - 06_sweep
+  - 07_registration
 download_data:
   file_url: https://raw.githubusercontent.com/ageron/handson-ml2/master/datasets/housing/housing.tgz
   artifact_name: housing_data_raw
   artifact_type: raw_data
   artifact_description: California Housing - Raw data downloaded from source
-  gcs_output_path: data/01-raw/housing.csv
+  gcs_output_path: data/01-raw/housing.parquet
 preprocessing:
   input_artifact_name: housing_data_raw:latest
-  gcs_input_path: data/01-raw/housing.csv
-  gcs_output_path: data/02-processed/housing_processed.csv
+  gcs_input_path: data/01-raw/housing.parquet
+  gcs_output_path: data/02-processed/housing_processed.parquet
   artifact_name: housing_data_processed
   artifact_type: processed_data
   artifact_description: California Housing - Preprocessed with automatic imputation
@@ -31,8 +33,8 @@ wandb:
   entity: ${oc.env:WANDB_ENTITY,null}
 feature_engineering:
   input_artifact_name: housing_data_processed:latest
-  gcs_input_path: data/02-processed/housing_processed.csv
-  gcs_output_path: data/03-features/housing_features.csv
+  gcs_input_path: data/02-processed/housing_processed.parquet
+  gcs_output_path: data/03-features/housing_features.parquet
   artifact_name: housing_features
   artifact_type: engineered_features
   artifact_description: California Housing - Feature engineered data with clustering
@@ -42,9 +44,9 @@ feature_engineering:
   optimize_hyperparams: 'True'
 segregation:
   input_artifact_name: housing_features:latest
-  gcs_input_path: data/03-features/housing_features.csv
-  gcs_train_output_path: data/04-segregated/train.csv
-  gcs_test_output_path: data/04-segregated/test.csv
+  gcs_input_path: data/03-features/housing_features.parquet
+  gcs_train_output_path: data/04-split/train/train.parquet
+  gcs_test_output_path: data/04-split/test/test.parquet
   artifact_root: housing_data
   artifact_type: segregated_data
   artifact_description: California Housing - Train/Test split
@@ -54,13 +56,31 @@ segregation:
 model_selection:
   train_artifact_name: housing_data_train:latest
   test_artifact_name: housing_data_test:latest
-  gcs_train_path: data/04-segregated/train.csv
-  gcs_test_path: data/04-segregated/test.csv
+  gcs_train_path: data/04-split/train/train.parquet
+  gcs_test_path: data/04-split/test/test.parquet
   artifact_name: best_model_selection
   artifact_type: model
   artifact_description: Best model selected from multiple algorithms
   target_column: median_house_value
   random_state: 42
+sweep:
+  train_artifact_name: housing_data_train:latest
+  test_artifact_name: housing_data_test:latest
+  gcs_train_path: data/04-split/train/train.parquet
+  gcs_test_path: data/04-split/test/test.parquet
+  best_model_type: RandomForest
+  sweep_count: 5
+  metric_name: mape
+  metric_goal: minimize
+  target_column: median_house_value
+registration:
+  gcs_train_path: data/04-split/train/train.parquet
+  gcs_test_path: data/04-split/test/test.parquet
+  best_params_path: best_params.yaml
+  registered_model_name: housing_price_model
+  model_stage: Staging
+  target_column: median_house_value
+  models_output_path: models/production
 training:
   train_data_artifact: housing_features:latest
   val_size: 0.2

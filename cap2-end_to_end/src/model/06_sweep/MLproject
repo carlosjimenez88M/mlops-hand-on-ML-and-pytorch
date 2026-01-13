@@ -1,0 +1,16 @@
+name: hyperparameter_sweep
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      train_artifact_name: {type: string}
+      test_artifact_name: {type: string}
+      gcs_train_path: {type: string}
+      gcs_test_path: {type: string}
+      bucket_name: {type: string}
+      wandb_project: {type: string}
+      target_column: {type: string, default: "median_house_value"}
+      sweep_count: {type: int, default: 50}
+
+    command: "python main.py --train_artifact_name {train_artifact_name} --test_artifact_name {test_artifact_name} --gcs_train_path {gcs_train_path} --gcs_test_path {gcs_test_path} --bucket_name {bucket_name} --wandb_project {wandb_project} --target_column {target_column} --sweep_count {sweep_count}"

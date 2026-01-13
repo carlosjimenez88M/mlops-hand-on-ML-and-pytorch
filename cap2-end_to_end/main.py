@@ -248,6 +248,72 @@ def run_model_selection(config: DictConfig, root_path: Path) -> None:
     print("\nModel selection completed successfully!\n")
 
 
+def run_sweep(config: DictConfig, root_path: Path) -> None:
+    """
+    Execute the hyperparameter sweep step.
+
+    Args:
+        config: Hydra configuration
+        root_path: Project root path
+    """
+    print("\n" + "=" * 70)
+    print("  STEP 6: HYPERPARAMETER SWEEP")
+    print("=" * 70)
+
+    step_path = root_path / "src" / "model" / "06_sweep"
+
+    mlflow.run(
+        uri=str(step_path),
+        entry_point="main",
+        env_manager="local",
+        parameters={
+            "train_artifact_name": config["sweep"]["train_artifact_name"],
+            "test_artifact_name": config["sweep"]["test_artifact_name"],
+            "gcs_train_path": config["sweep"]["gcs_train_path"],
+            "gcs_test_path": config["sweep"]["gcs_test_path"],
+            "bucket_name": config["gcs"]["bucket_name"],
+            "wandb_project": config["main"]["project_name"],
+            "target_column": config["sweep"]["target_column"],
+            "sweep_count": config["sweep"]["sweep_count"],
+        },
+    )
+
+    print("\nHyperparameter sweep completed successfully!\n")
+
+
+def run_registration(config: DictConfig, root_path: Path) -> None:
+    """
+    Execute the model registration step.
+
+    Args:
+        config: Hydra configuration
+        root_path: Project root path
+    """
+    print("\n" + "=" * 70)
+    print("  STEP 7: MODEL REGISTRATION")
+    print("=" * 70)
+
+    step_path = root_path / "src" / "model" / "07_registration"
+
+    mlflow.run(
+        uri=str(step_path),
+        entry_point="main",
+        env_manager="local",
+        parameters={
+            "bucket_name": config["gcs"]["bucket_name"],
+            "gcs_train_path": config["registration"]["gcs_train_path"],
+            "gcs_test_path": config["registration"]["gcs_test_path"],
+            "best_params_path": config["registration"]["best_params_path"],
+            "registered_model_name": config["registration"]["registered_model_name"],
+            "model_stage": config["registration"]["model_stage"],
+            "target_column": config["registration"]["target_column"],
+            "wandb_project": config["main"]["project_name"],
+        },
+    )
+
+    print("\nModel registration completed successfully!\n")
+
+
 @hydra.main(
     config_path='.',
     config_name="config",
@@ -289,6 +355,12 @@ def go(config: DictConfig) -> None:
 
         if "05_model_selection" in steps_to_execute:
             run_model_selection(config, root_path)
+
+        if "06_sweep" in steps_to_execute:
+            run_sweep(config, root_path)
+
+        if "07_registration" in steps_to_execute:
+            run_registration(config, root_path)
 
         # Print summary
         elapsed_time = time.time() - start_time

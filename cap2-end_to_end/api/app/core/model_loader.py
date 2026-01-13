@@ -1,10 +1,11 @@
 """
-Model loader for loading trained models from GCS or local filesystem.
+Model loader for loading trained models from MLflow, GCS or local filesystem.
 """
 import pickle
 from pathlib import Path
 from typing import Any, Optional
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,10 @@ class ModelLoader:
         self,
         local_model_path: Optional[str] = None,
         gcs_bucket: Optional[str] = None,
-        gcs_model_path: Optional[str] = None
+        gcs_model_path: Optional[str] = None,
+        mlflow_model_name: Optional[str] = None,
+        mlflow_model_stage: Optional[str] = None,
+        mlflow_tracking_uri: Optional[str] = None
     ):
         """
         Initialize model loader.
@@ -25,10 +29,16 @@ class ModelLoader:
             local_model_path: Path to local model file
             gcs_bucket: GCS bucket name
             gcs_model_path: Path to model in GCS bucket
+            mlflow_model_name: Name of registered model in MLflow
+            mlflow_model_stage: Model stage (Staging/Production/None)
+            mlflow_tracking_uri: MLflow tracking server URI
         """
         self.local_model_path = local_model_path
         self.gcs_bucket = gcs_bucket
         self.gcs_model_path = gcs_model_path
+        self.mlflow_model_name = mlflow_model_name
+        self.mlflow_model_stage = mlflow_model_stage
+        self.mlflow_tracking_uri = mlflow_tracking_uri
         self._model: Optional[Any] = None
         self._model_version: str = "unknown"
 
@@ -108,10 +118,85 @@ class ModelLoader:
             logger.error(f"Failed to load model from GCS: {str(e)}")
             raise Exception(f"GCS model loading failed: {str(e)}")
 
+    def load_from_mlflow(
+        self,
+        model_name: str,
+        stage: Optional[str] = None,
+        tracking_uri: Optional[str] = None
+    ) -> Any:
+        """
+        Load model from MLflow Model Registry.
+
+        Args:
+            model_name: Name of registered model
+            stage: Model stage (Staging/Production/None for latest version)
+            tracking_uri: MLflow tracking server URI
+
+        Returns:
+            Loaded model object
+
+        Raises:
+            ImportError: If mlflow is not installed
+            Exception: If model loading fails
+        """
+        try:
+            import mlflow
+            import mlflow.pyfunc
+        except ImportError:
+            raise ImportError(
+                "mlflow is required for MLflow model loading. "
+                "Install with: pip install mlflow"
+            )
+
+        # Set tracking URI if provided
+        if tracking_uri:
+            mlflow.set_tracking_uri(tracking_uri)
+            logger.info(f"MLflow tracking URI: {tracking_uri}")
+        else:
+            logger.info("Using default MLflow tracking URI")
+
+        try:
+            # Build model URI
+            if stage:
+                model_uri = f"models:/{model_name}/{stage}"
+                logger.info(f"Loading model from MLflow: {model_uri}")
+            else:
+                # Get latest version
+                from mlflow.tracking import MlflowClient
+                client = MlflowClient()
+                latest_versions = client.get_latest_versions(model_name, stages=["Staging", "Production"])
+
+                if not latest_versions:
+                    # Try to get any version
+                    all_versions = client.search_model_versions(f"name='{model_name}'")
+                    if not all_versions:
+                        raise Exception(f"No versions found for model: {model_name}")
+                    latest_version = max(all_versions, key=lambda v: int(v.version))
+                else:
+                    # Prefer Production over Staging
+                    production_versions = [v for v in latest_versions if v.current_stage == "Production"]
+                    latest_version = production_versions[0] if production_versions else latest_versions[0]
+
+                model_uri = f"models:/{model_name}/{latest_version.version}"
+                logger.info(f"Loading model from MLflow: {model_uri} (stage: {latest_version.current_stage})")
+
+            # Load model
+            model = mlflow.sklearn.load_model(model_uri)
+
+            # Extract version info
+            self._model_version = model_uri
+            logger.info(f"Model loaded successfully from MLflow: {self._model_version}")
+
+            return model
+
+        except Exception as e:
+            logger.error(f"Failed to load model from MLflow: {str(e)}")
+            raise Exception(f"MLflow model loading failed: {str(e)}")
+
     def load_model(self) -> Any:
         """
         Load model using configured settings.
-        Tries GCS first if configured, falls back to local.
+        Priority: MLflow > GCS > Local
 
         Returns:
             Loaded model object
@@ -124,7 +209,19 @@ class ModelLoader:
             logger.info("Returning cached model")
             return self._model
 
-        # Try GCS first if configured
+        # Try MLflow first if configured
+        if self.mlflow_model_name:
+            try:
+                self._model = self.load_from_mlflow(
+                    self.mlflow_model_name,
+                    self.mlflow_model_stage,
+                    self.mlflow_tracking_uri
+                )
+                return self._model
+            except Exception as e:
+                logger.warning(f"MLflow loading failed, trying GCS: {str(e)}")
+
+        # Try GCS if configured
         if self.gcs_bucket and self.gcs_model_path:
             try:
                 self._model = self.load_from_gcs(
@@ -145,8 +242,8 @@ class ModelLoader:
                 raise
 
         raise ValueError(
-            "No model path configured. Set either local_model_path or "
-            "gcs_bucket + gcs_model_path"
+            "No model path configured. Set either mlflow_model_name, "
+            "gcs_bucket + gcs_model_path, or local_model_path"
         )
 
     def predict(self, features: Any) -> Any:

@@ -111,11 +111,13 @@ hydra:
   overrides:
     hydra:
     - hydra.mode=RUN
-    task: []
+    task:
+    - main.execute_steps=["01_download_data","02_preprocessing_and_imputation","03_feature_engineering","04_segregation","05_model_selection","06_sweep","07_registration"]
+    - sweep.sweep_count=5
   job:
     name: main
     chdir: false
-    override_dirname: ''
+    override_dirname: main.execute_steps=["01_download_data","02_preprocessing_and_imputation","03_feature_engineering","04_segregation","05_model_selection","06_sweep","07_registration"],sweep.sweep_count=5
     id: ???
     num: ???
     config_name: config

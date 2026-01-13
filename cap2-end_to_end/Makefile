@@ -12,6 +12,7 @@ help:
 	@echo ""
 	@echo "🚀 Pipeline Execution:"
 	@echo "  make run-pipeline    - Run complete MLOps pipeline (Steps 1-5)"
+	@echo "  make run-sweep       - Run W&B Sweep for hyperparameter optimization"
 	@echo "  make test-config     - Test pipeline configuration"
 	@echo ""
 	@echo "🧪 Testing:"
@@ -78,6 +79,17 @@ run-download: install
 run-preprocessing: install
 	@echo "Running preprocessing step..."
 	@.venv/bin/python main.py main.execute_steps=[02_preprocessing_and_imputation]
+
+# Run W&B Sweep for hyperparameter optimization
+run-sweep: install
+	@echo "Running W&B Sweep for hyperparameter optimization..."
+	@echo "This will test multiple combinations of n_clusters and gamma"
+	@.venv/bin/python src/data/03_feature_engineering/run_sweep.py --count 20
+
+# Run single sweep agent (for parallel execution)
+run-sweep-agent: install
+	@echo "Running sweep agent (use SWEEP_ID environment variable)..."
+	@.venv/bin/python -c "import wandb; wandb.agent('$$SWEEP_ID', function=lambda: __import__('src.data.03_feature_engineering.run_sweep').train_with_sweep())"
 
 # Lint code
 lint:

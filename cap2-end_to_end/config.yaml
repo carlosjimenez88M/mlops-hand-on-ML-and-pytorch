@@ -13,6 +13,8 @@ main:
     - "03_feature_engineering"
     - "04_segregation"
     - "05_model_selection"
+    - "06_sweep"
+    - "07_registration"
 
 # Hydra configuration
 hydra:
@@ -81,8 +83,8 @@ feature_engineering:
 segregation:
   input_artifact_name: "housing_features:latest"
   gcs_input_path: "data/03-features/housing_features.parquet"
-  gcs_train_output_path: "data/04-segregated/train.parquet"
-  gcs_test_output_path: "data/04-segregated/test.parquet"
+  gcs_train_output_path: "data/04-split/train/train.parquet"
+  gcs_test_output_path: "data/04-split/test/test.parquet"
   artifact_root: "housing_data"
   artifact_type: "segregated_data"
   artifact_description: "California Housing - Train/Test split"
@@ -94,13 +96,35 @@ segregation:
 model_selection:
   train_artifact_name: "housing_data_train:latest"
   test_artifact_name: "housing_data_test:latest"
-  gcs_train_path: "data/04-segregated/train.parquet"
-  gcs_test_path: "data/04-segregated/test.parquet"
+  gcs_train_path: "data/04-split/train/train.parquet"
+  gcs_test_path: "data/04-split/test/test.parquet"
   artifact_name: "best_model_selection"
   artifact_type: "model"
   artifact_description: "Best model selected from multiple algorithms"
   target_column: "median_house_value"
   random_state: 42
+
+# Hyperparameter Sweep (Step 06)
+sweep:
+  train_artifact_name: "housing_data_train:latest"
+  test_artifact_name: "housing_data_test:latest"
+  gcs_train_path: "data/04-split/train/train.parquet"
+  gcs_test_path: "data/04-split/test/test.parquet"
+  best_model_type: "RandomForest"
+  sweep_count: 50
+  metric_name: "mape"
+  metric_goal: "minimize"
+  target_column: "median_house_value"
+
+# Model Registration (Step 07)
+registration:
+  gcs_train_path: "data/04-split/train/train.parquet"
+  gcs_test_path: "data/04-split/test/test.parquet"
+  best_params_path: "best_params.yaml"
+  registered_model_name: "housing_price_model"
+  model_stage: "Staging"
+  target_column: "median_house_value"
+  models_output_path: "models/production"
 
 # Model Training
 training:

@@ -1,1 +1,2 @@
-[]
+- main.execute_steps=["01_download_data","02_preprocessing_and_imputation","03_feature_engineering","04_segregation","05_model_selection","06_sweep","07_registration"]
+- sweep.sweep_count=5

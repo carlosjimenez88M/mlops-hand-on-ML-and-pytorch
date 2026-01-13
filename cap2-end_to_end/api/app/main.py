@@ -44,9 +44,12 @@ async def lifespan(app: FastAPI):
 
     # Initialize model loader
     model_loader = ModelLoader(
-        local_model_path=settings.MODEL_PATH,
+        local_model_path=settings.LOCAL_MODEL_PATH,
         gcs_bucket=settings.GCS_BUCKET if settings.GCS_BUCKET else None,
-        gcs_model_path=settings.GCS_MODEL_PATH if settings.GCS_BUCKET else None
+        gcs_model_path=settings.GCS_MODEL_PATH if settings.GCS_BUCKET else None,
+        mlflow_model_name=settings.MLFLOW_MODEL_NAME if settings.MLFLOW_MODEL_NAME else None,
+        mlflow_model_stage=settings.MLFLOW_MODEL_STAGE,
+        mlflow_tracking_uri=settings.MLFLOW_TRACKING_URI if settings.MLFLOW_TRACKING_URI else None
     )
 
     # Load model
