@@ -1,4 +1,4 @@
-name: preprocessing_and_imputation
+name: data_segregation
 
 entry_points:
   main:
@@ -11,19 +11,21 @@ entry_points:
         type: string
         description: "GCS path to input data (without gs://bucket/)"
 
-      gcs_output_path:
+      gcs_train_output_path:
         type: string
-        default: "data/02-processed/housing_processed.csv"
-        description: "Path in GCS for processed data"
+        description: "GCS path for train data (without gs://bucket/)"
 
-      artifact_name:
+      gcs_test_output_path:
         type: string
-        default: "housing_data_processed"
-        description: "Name of the output artifact in W&B"
+        description: "GCS path for test data (without gs://bucket/)"
+
+      artifact_root:
+        type: string
+        description: "Root name for output artifacts"
 
       artifact_type:
         type: string
-        default: "processed_data"
+        default: "segregated_data"
         description: "Type of artifact"
 
       artifact_description:
@@ -40,25 +42,32 @@ entry_points:
         default: "housing-mlops-gcp"
         description: "W&B Project"
 
-      imputation_strategy:
-        type: string
-        default: "auto"
-        description: "Strategy for handling missing values"
+      test_size:
+        type: float
+        default: 0.2
+        description: "Fraction of data for test set"
 
-      create_features:
+      random_state:
+        type: float
+        default: 42
+        description: "Random state for reproducibility"
+
+      target_column:
         type: string
-        default: "True"
-        description: "Whether to create engineered features"
+        default: "median_house_value"
+        description: "Target column name"
 
     command: |
       python main.py \
         --input_artifact_name {input_artifact_name} \
         --gcs_input_path {gcs_input_path} \
-        --gcs_output_path {gcs_output_path} \
-        --artifact_name {artifact_name} \
+        --gcs_train_output_path {gcs_train_output_path} \
+        --gcs_test_output_path {gcs_test_output_path} \
+        --artifact_root {artifact_root} \
         --artifact_type {artifact_type} \
         --artifact_description {artifact_description} \
         --bucket_name {bucket_name} \
         --wandb_project {wandb_project} \
-        --imputation_strategy {imputation_strategy} \
-        --create_features {create_features}
+        --test_size {test_size} \
+        --random_state {random_state} \
+        --target_column {target_column}

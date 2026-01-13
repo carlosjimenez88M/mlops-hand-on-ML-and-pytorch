@@ -1,12 +1,23 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 
+def find_env_file() -> Path:
+    """Find .env file by searching up from current directory."""
+    current = Path(__file__).resolve()
+    for parent in [current.parent] + list(current.parents):
+        env_file = parent / ".env"
+        if env_file.exists():
+            return env_file
+    return Path(".env")  # Fallback
+
+
 class ComponentSettings(BaseSettings):
     """Configutation for the data download component."""
-    
+
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(find_env_file()),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore"

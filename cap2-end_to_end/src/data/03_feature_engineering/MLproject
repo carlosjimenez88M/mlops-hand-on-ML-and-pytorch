@@ -1,4 +1,4 @@
-name: preprocessing_and_imputation
+name: feature_engineering
 
 entry_points:
   main:
@@ -13,17 +13,17 @@ entry_points:
 
       gcs_output_path:
         type: string
-        default: "data/02-processed/housing_processed.csv"
-        description: "Path in GCS for processed data"
+        default: "data/03-features/housing_features.csv"
+        description: "Path in GCS for feature-engineered data"
 
       artifact_name:
         type: string
-        default: "housing_data_processed"
+        default: "housing_features"
         description: "Name of the output artifact in W&B"
 
       artifact_type:
         type: string
-        default: "processed_data"
+        default: "engineered_features"
         description: "Type of artifact"
 
       artifact_description:
@@ -40,15 +40,20 @@ entry_points:
         default: "housing-mlops-gcp"
         description: "W&B Project"
 
-      imputation_strategy:
-        type: string
-        default: "auto"
-        description: "Strategy for handling missing values"
+      n_clusters:
+        type: float
+        default: 10
+        description: "Number of clusters for geo features"
 
-      create_features:
-        type: string
-        default: "True"
-        description: "Whether to create engineered features"
+      gamma:
+        type: float
+        default: 0.1
+        description: "Gamma parameter for clustering"
+
+      random_state:
+        type: float
+        default: 42
+        description: "Random state for reproducibility"
 
     command: |
       python main.py \
@@ -60,5 +65,6 @@ entry_points:
         --artifact_description {artifact_description} \
         --bucket_name {bucket_name} \
         --wandb_project {wandb_project} \
-        --imputation_strategy {imputation_strategy} \
-        --create_features {create_features}
+        --n_clusters {n_clusters} \
+        --gamma {gamma} \
+        --random_state {random_state}

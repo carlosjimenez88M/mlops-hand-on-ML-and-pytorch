@@ -1,0 +1,123 @@
+# =================================================================
+# MLOps Pipeline Configuration
+# Author: Carlos Daniel Jiménez
+# Date: 2025-01-13
+# =================================================================
+
+main:
+  project_name: "housing-mlops-gcp"
+  experiment_name: "end_to_end_pipeline"
+  execute_steps:
+    - "01_download_data"
+    - "02_preprocessing_and_imputation"
+    - "03_feature_engineering"
+    - "04_segregation"
+    # - "05_train_model"
+    # - "06_evaluate_model"
+    # - "07_deploy_model"
+
+# Hydra configuration
+hydra:
+  run:
+    dir: .
+  job:
+    chdir: false
+
+# =================================================================
+# Step 1: Download Data Configuration
+# =================================================================
+download_data:
+  file_url: "https://raw.githubusercontent.com/ageron/handson-ml2/master/datasets/housing/housing.tgz"
+  artifact_name: "housing_data_raw"
+  artifact_type: "raw_data"
+  artifact_description: "California Housing - Raw data downloaded from source"
+  gcs_output_path: "data/01-raw/housing.csv"
+
+# =================================================================
+# Step 2: Preprocessing and Imputation Configuration
+# =================================================================
+preprocessing:
+  input_artifact_name: "housing_data_raw:latest"
+  gcs_input_path: "data/01-raw/housing.csv"
+  gcs_output_path: "data/02-processed/housing_processed.csv"
+  artifact_name: "housing_data_processed"
+  artifact_type: "processed_data"
+  artifact_description: "California Housing - Preprocessed with automatic imputation"
+  imputation_strategy: "auto"  # Options: auto, median, mean, mode, drop
+  create_features: "True"  # Create engineered features
+
+# =================================================================
+# GCS Configuration (loaded from environment variables)
+# =================================================================
+gcs:
+  # These will be loaded from .env file
+  bucket_name: ${oc.env:GCS_BUCKET_NAME}
+  project_id: ${oc.env:GCP_PROJECT_ID}
+  region: ${oc.env:GCP_REGION,us-central1}
+
+# =================================================================
+# Weights & Biases Configuration (loaded from environment variables)
+# =================================================================
+wandb:
+  project: ${oc.env:WANDB_PROJECT,housing-mlops-gcp}
+  entity: ${oc.env:WANDB_ENTITY,null}
+
+# =================================================================
+# Future Steps Configuration (placeholder)
+# =================================================================
+
+# Feature Engineering
+feature_engineering:
+  input_artifact_name: "housing_data_processed:latest"
+  gcs_input_path: "data/02-processed/housing_processed.csv"
+  gcs_output_path: "data/03-features/housing_features.csv"
+  artifact_name: "housing_features"
+  artifact_type: "engineered_features"
+  artifact_description: "California Housing - Feature engineered data with clustering"
+  n_clusters: 10
+  gamma: 0.1
+  random_state: 42
+
+# Data Segregation (Train/Test Split)
+segregation:
+  input_artifact_name: "housing_features:latest"
+  gcs_input_path: "data/03-features/housing_features.csv"
+  gcs_train_output_path: "data/04-segregated/train.csv"
+  gcs_test_output_path: "data/04-segregated/test.csv"
+  artifact_root: "housing_data"
+  artifact_type: "segregated_data"
+  artifact_description: "California Housing - Train/Test split"
+  test_size: 0.2
+  random_state: 42
+  target_column: "median_house_value"
+
+# Model Training
+training:
+  train_data_artifact: "housing_features:latest"
+  val_size: 0.2
+  test_size: 0.2
+  random_seed: 42
+  model_type: "random_forest"
+
+  # Model hyperparameters
+  hyperparameters:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_split: 2
+    min_samples_leaf: 1
+    random_state: 42
+
+# Model Evaluation
+evaluation:
+  model_artifact: "model_export:latest"
+  test_data: "housing_features:latest"
+  metrics:
+    - "rmse"
+    - "mae"
+    - "r2"
+
+# Model Deployment
+deployment:
+  model_artifact: "model_export:latest"
+  deployment_target: "gcp_vertex_ai"
+  endpoint_name: "housing-price-predictor"

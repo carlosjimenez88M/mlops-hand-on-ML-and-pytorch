@@ -26,10 +26,17 @@ from imputation_analyzer import ImputationAnalyzer
 
 # Logger configuration
 import sys
-sys.path.insert(0, str(__file__).rsplit('/', 5)[0])
-from src.utils.colored_logger import setup_colored_logger
-
-logger = setup_colored_logger(__name__)
+try:
+    sys.path.insert(0, str(__file__).rsplit('/', 5)[0])
+    from src.utils.colored_logger import setup_colored_logger
+    logger = setup_colored_logger(__name__)
+except (ImportError, Exception):
+    import logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+    logger = logging.getLogger(__name__)
 
 
 class DataPreprocessor:
@@ -50,6 +57,11 @@ class DataPreprocessor:
     def _init_gcs_client(self) -> None:
         """Initializes GCS client."""
         try:
+            # If GOOGLE_APPLICATION_CREDENTIALS is empty, unset it to use ADC
+            import os
+            if os.getenv('GOOGLE_APPLICATION_CREDENTIALS') == '':
+                os.environ.pop('GOOGLE_APPLICATION_CREDENTIALS', None)
+
             self.storage_client = storage.Client()
             self.bucket = self.storage_client.bucket(self.config.bucket_name)
 

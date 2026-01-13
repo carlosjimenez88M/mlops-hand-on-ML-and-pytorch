@@ -1,0 +1,65 @@
+[project]
+name = "housing-mlops-pipeline"
+version = "0.1.0"
+description = "MLOps pipeline for California Housing dataset"
+authors = [
+    {name = "Carlos Daniel Jiménez", email = "danieljimenez88m@gmail.com"}
+]
+requires-python = ">=3.12"
+dependencies = [
+    "requests",
+    "pip",
+    "mlflow",
+    "hydra-core",
+    "wandb==0.23.0",
+    "google-cloud-storage==3.6.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "pandas==2.2.2",
+    "numpy",
+    "scikit-learn==1.7.2",
+    "matplotlib",
+    "seaborn",
+    "python-dotenv==1.2.1",
+    "omegaconf",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff",
+    "mypy",
+]
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-v --strict-markers --tb=short"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "**/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N"]
+ignore = ["E501"]

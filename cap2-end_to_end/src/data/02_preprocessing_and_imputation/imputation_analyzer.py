@@ -23,10 +23,17 @@ from sklearn.impute import IterativeImputer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 
-sys.path.insert(0, str(__file__).rsplit('/', 5)[0])
-from src.utils.colored_logger import setup_colored_logger
-
-logger = setup_colored_logger(__name__)
+try:
+    sys.path.insert(0, str(__file__).rsplit('/', 5)[0])
+    from src.utils.colored_logger import setup_colored_logger
+    logger = setup_colored_logger(__name__)
+except (ImportError, Exception):
+    import logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+    logger = logging.getLogger(__name__)
 
 
 @dataclass

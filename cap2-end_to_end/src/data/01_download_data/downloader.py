@@ -87,6 +87,11 @@ class DataDownloader:
             RuntimeError: If connection to GCS fails or bucket doesn't exist
         """
         try:
+            # If GOOGLE_APPLICATION_CREDENTIALS is empty, unset it to use ADC
+            import os
+            if os.getenv('GOOGLE_APPLICATION_CREDENTIALS') == '':
+                os.environ.pop('GOOGLE_APPLICATION_CREDENTIALS', None)
+
             self.storage_client = storage.Client()
             self.bucket = self.storage_client.bucket(self.config.bucket_name)
 

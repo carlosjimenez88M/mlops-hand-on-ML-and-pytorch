@@ -1,7 +1,7 @@
 """
-Configuration for preprocessing module using pydantic_settings
+Configuration for data segregation module using pydantic_settings
 Author: Carlos Daniel Jiménez
-Date: 2025-11-28
+Date: 2026-01-13
 """
 
 from pathlib import Path
@@ -20,7 +20,7 @@ def find_env_file() -> Path:
 
 
 class ComponentSettings(BaseSettings):
-    """Configuration for the preprocessing component."""
+    """Configuration for the data segregation component."""
 
     model_config = SettingsConfigDict(
         env_file=str(find_env_file()),

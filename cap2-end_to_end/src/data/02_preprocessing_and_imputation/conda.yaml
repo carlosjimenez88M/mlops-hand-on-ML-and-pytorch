@@ -3,10 +3,14 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python= 3.13.2
-  - pandas = 2.2.2
-  - scikit-learn = 1.7.2
+  - python=3.12
+  - pandas=2.2.2
+  - scikit-learn=1.7.2
+  - matplotlib
+  - seaborn
   - pip:
       - google-cloud-storage==3.6.0
-      - wandb==0.15.10
+      - wandb==0.23.0
       - python-dotenv==1.2.1
+      - pydantic>=2.0.0
+      - pydantic-settings>=2.0.0
