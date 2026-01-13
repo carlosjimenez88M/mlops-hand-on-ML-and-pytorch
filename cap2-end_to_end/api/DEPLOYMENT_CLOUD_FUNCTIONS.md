@@ -52,12 +52,12 @@ User Request
     ↓
 Cloud Functions (FastAPI + Uvicorn)
     ↓
-├─→ MLflow Model Registry (Priority)
-├─→ GCS Bucket (Fallback)
-└─→ Local Model (Fallback)
+→ MLflow Model Registry (Priority)
+→ GCS Bucket (Fallback)
+→ Local Model (Fallback)
     ↓
-├─→ Weights & Biases (Logging)
-└─→ Response
+→ Weights & Biases (Logging)
+→ Response
 ```
 
 **Why Cloud Functions 2nd Gen?**

@@ -103,7 +103,7 @@ def main(args: argparse.Namespace) -> int:
                     wandb.log({plot_name: wandb.Image(fig)})
                     plt.close(fig)  # Close to free memory
 
-                logger.info("✓ Visualizations uploaded successfully")
+                logger.info(" Visualizations uploaded successfully")
 
             # 5. Create metadata for W&B
             metadata = preprocessor.create_wandb_metadata(result)

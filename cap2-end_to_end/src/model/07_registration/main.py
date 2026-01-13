@@ -331,7 +331,7 @@ def main():
         })
 
     wandb.finish()
-    logger.info("\n✅ Model registration completed successfully!")
+    logger.info("\n Model registration completed successfully!")
 
 
 if __name__ == "__main__":

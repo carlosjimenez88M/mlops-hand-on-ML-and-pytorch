@@ -28,7 +28,7 @@ def check_env_file():
     print_section("CHECKING ENVIRONMENT FILE")
 
     if not Path(".env").exists():
-        print("❌ .env file not found")
+        print(" .env file not found")
         print("   Run: cp .env.example .env")
         return False
 
@@ -40,13 +40,13 @@ def check_env_file():
     for var in required_vars:
         value = os.getenv(var)
         if value:
-            print(f"✅ {var}: {value}")
+            print(f" {var}: {value}")
         else:
-            print(f"❌ {var}: Not set")
+            print(f" {var}: Not set")
             missing.append(var)
 
     if missing:
-        print(f"\n⚠️  Missing variables: {', '.join(missing)}")
+        print(f"\n  Missing variables: {', '.join(missing)}")
         return False
 
     return True
@@ -57,14 +57,14 @@ def check_config_file():
     print_section("CHECKING CONFIGURATION FILE")
 
     if not Path("config.yaml").exists():
-        print("❌ config.yaml not found")
+        print(" config.yaml not found")
         return False
 
     try:
         with open("config.yaml", "r") as f:
             config = yaml.safe_load(f)
 
-        print("✅ config.yaml loaded successfully")
+        print(" config.yaml loaded successfully")
 
         # Check main configuration
         if "main" in config:
@@ -80,7 +80,7 @@ def check_config_file():
         return True
 
     except Exception as e:
-        print(f"❌ Error loading config.yaml: {e}")
+        print(f" Error loading config.yaml: {e}")
         return False
 
 
@@ -100,9 +100,9 @@ def check_mlproject_files():
     for step_name, mlproject_path in steps.items():
         path = Path(mlproject_path)
         if path.exists():
-            print(f"✅ {step_name}: {mlproject_path}")
+            print(f" {step_name}: {mlproject_path}")
         else:
-            print(f"❌ {step_name}: {mlproject_path} not found")
+            print(f" {step_name}: {mlproject_path} not found")
             all_exist = False
 
     return all_exist
@@ -124,9 +124,9 @@ def check_main_files():
     for main_file in main_files:
         path = Path(main_file)
         if path.exists():
-            print(f"✅ {main_file}")
+            print(f" {main_file}")
         else:
-            print(f"❌ {main_file} not found")
+            print(f" {main_file} not found")
             all_exist = False
 
     return all_exist
@@ -151,13 +151,13 @@ def check_dependencies():
         package_name = package.split('.')[0]  # Handle submodules
         try:
             __import__(package_name)
-            print(f"✅ {package}")
+            print(f" {package}")
         except ImportError:
-            print(f"❌ {package} not installed")
+            print(f" {package} not installed")
             missing.append(package)
 
     if missing:
-        print(f"\n⚠️  Install missing packages:")
+        print(f"\n  Install missing packages:")
         print(f"   pip install {' '.join(missing)}")
         return False
 
@@ -189,17 +189,17 @@ def main():
     all_passed = all(result for _, result in results)
 
     for name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
+        status = " PASSED" if result else " FAILED"
         print(f"  {status}: {name}")
 
     print("\n" + "=" * 70)
 
     if all_passed:
-        print("  ✅ ALL CHECKS PASSED!")
-        print("  🚀 Ready to run: python main.py")
+        print("   ALL CHECKS PASSED!")
+        print("   Ready to run: python main.py")
     else:
-        print("  ❌ SOME CHECKS FAILED")
-        print("  ⚠️  Fix the issues above before running the pipeline")
+        print("   SOME CHECKS FAILED")
+        print("    Fix the issues above before running the pipeline")
 
     print("=" * 70 + "\n")
 

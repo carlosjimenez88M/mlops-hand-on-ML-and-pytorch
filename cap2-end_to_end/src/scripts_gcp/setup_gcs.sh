@@ -9,9 +9,9 @@ PROJECT_ID=$(gcloud config get-value project)
 BUCKET_NAME="${PROJECT_ID}-cap2-end_to_end"
 REGION="us-central1"
 
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║        SETUP GCS PARA MLOPS PIPELINE - CAP2                  ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "        SETUP GCS PARA MLOPS PIPELINE - CAP2                  "
+echo ""
 echo ""
 echo "Project ID: $PROJECT_ID"
 echo "Bucket: gs://$BUCKET_NAME"
@@ -20,7 +20,7 @@ echo ""
 
 # Crear bucket si no existe
 if ! gsutil ls gs://$BUCKET_NAME 2>/dev/null; then
-    echo "📦 Creando bucket..."
+    echo " Creando bucket..."
     gsutil mb -p $PROJECT_ID -c STANDARD -l $REGION gs://$BUCKET_NAME
 
     # Configurar versionado
@@ -41,14 +41,14 @@ if ! gsutil ls gs://$BUCKET_NAME 2>/dev/null; then
       }
     }' | gsutil lifecycle set /dev/stdin gs://$BUCKET_NAME
 
-    echo "✓ Bucket creado con versionado habilitado"
+    echo " Bucket creado con versionado habilitado"
 else
-    echo "✓ Bucket ya existe"
+    echo " Bucket ya existe"
 fi
 
 # Crear estructura de carpetas según pipeline
 echo ""
-echo "📁 Creando estructura de carpetas del pipeline..."
+echo " Creando estructura de carpetas del pipeline..."
 echo ""
 
 # Crear archivo temporal para marcar carpetas
@@ -61,7 +61,7 @@ EOF
 # ============================================
 # DATA PIPELINE FOLDERS
 # ============================================
-echo "📊 Data Pipeline:"
+echo " Data Pipeline:"
 
 # Step 01: Raw Data
 echo "  → data/01-raw/"
@@ -85,7 +85,7 @@ gsutil cp /tmp/gcs_structure/.gitkeep gs://$BUCKET_NAME/data/04-split/val/.gitke
 # MODELS FOLDERS
 # ============================================
 echo ""
-echo "🤖 Models:"
+echo " Models:"
 
 # Experiments
 echo "  → models/experiments/"
@@ -103,7 +103,7 @@ gsutil cp /tmp/gcs_structure/.gitkeep gs://$BUCKET_NAME/models/checkpoints/.gitk
 # ARTIFACTS & METRICS
 # ============================================
 echo ""
-echo "📦 Artifacts & Metrics:"
+echo " Artifacts & Metrics:"
 
 # MLflow artifacts
 echo "  → artifacts/mlflow/"
@@ -122,7 +122,7 @@ gsutil cp /tmp/gcs_structure/.gitkeep gs://$BUCKET_NAME/metrics/reports/.gitkeep
 # LOGS
 # ============================================
 echo ""
-echo "📝 Logs:"
+echo " Logs:"
 
 echo "  → logs/pipeline/"
 gsutil cp /tmp/gcs_structure/.gitkeep gs://$BUCKET_NAME/logs/pipeline/.gitkeep 2>/dev/null || true
@@ -134,28 +134,28 @@ gsutil cp /tmp/gcs_structure/.gitkeep gs://$BUCKET_NAME/logs/training/.gitkeep 2
 rm -rf /tmp/gcs_structure
 
 echo ""
-echo "✓ Estructura de carpetas creada"
+echo " Estructura de carpetas creada"
 echo ""
 
 # Verificar estructura
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║           ESTRUCTURA DEL BUCKET                              ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "           ESTRUCTURA DEL BUCKET                              "
+echo ""
 echo ""
 gsutil ls -r gs://$BUCKET_NAME/ | grep "/$" | head -20
 
 echo ""
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║           ✅ SETUP COMPLETADO EXITOSAMENTE                   ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "            SETUP COMPLETADO EXITOSAMENTE                   "
+echo ""
 echo ""
 echo "Bucket URI: gs://$BUCKET_NAME"
 echo "Region: $REGION"
 echo "Versionado: HABILITADO"
 echo ""
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║           SIGUIENTES PASOS                                   ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "           SIGUIENTES PASOS                                   "
+echo ""
 echo ""
 echo "1. Actualiza tu archivo .env:"
 echo "   GCS_BUCKET_NAME=$BUCKET_NAME"

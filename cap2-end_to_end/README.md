@@ -1,12 +1,12 @@
 # MLOps Pipeline - Housing Price Prediction
 
-**Status**: ✅ Production Ready | **Model Version**: 5 | **MAPE**: 20.40%
+**Status**:  Production Ready | **Model Version**: 5 | **MAPE**: 20.40%
 
 Complete end-to-end MLOps pipeline for California housing price prediction using Random Forest, with W&B Sweep optimization and MLflow Model Registry integration.
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ```bash
 # Install UV package manager
@@ -29,7 +29,7 @@ python main.py
 
 ---
 
-## 📊 Pipeline Results
+##  Pipeline Results
 
 ### Best Model Performance
 ```yaml
@@ -44,13 +44,13 @@ Features: 14 (8 numerical + 5 categorical + 1 engineered)
 
 ### Pipeline Execution
 - **Total Time**: 8.6 minutes (515.92 seconds)
-- **All Steps**: ✅ Completed successfully
+- **All Steps**:  Completed successfully
 - **Optimization**: Bayesian (5 runs, not GridSearch)
 - **Tracking**: MLflow + Weights & Biases
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ### Pipeline Steps
 
@@ -67,22 +67,22 @@ Features: 14 (8 numerical + 5 categorical + 1 engineered)
 ### Project Structure
 ```
 cap2-end_to_end/
-├── main.py                      # Pipeline orchestrator
-├── config.yaml                  # Central configuration
-├── configs/
-│   └── model_config.yaml       # Generated model metadata
-├── src/
-│   ├── data/                   # Data processing steps (01-04)
-│   └── model/                  # Model steps (05-07)
-├── api/                        # FastAPI prediction service
-├── models/trained/             # Saved models
-├── tests/                      # Unit and integration tests
-└── .github/workflows/          # CI/CD pipelines
+ main.py                      # Pipeline orchestrator
+ config.yaml                  # Central configuration
+ configs/
+    model_config.yaml       # Generated model metadata
+ src/
+    data/                   # Data processing steps (01-04)
+    model/                  # Model steps (05-07)
+ api/                        # FastAPI prediction service
+ models/trained/             # Saved models
+ tests/                      # Unit and integration tests
+ .github/workflows/          # CI/CD pipelines
 ```
 
 ---
 
-## ⚙️ Configuration
+##  Configuration
 
 ### Environment Variables (.env)
 
@@ -101,7 +101,7 @@ WANDB_API_KEY=your-wandb-api-key-here
 MLFLOW_TRACKING_URI=./mlruns
 ```
 
-**⚠️ Security**: Never commit `.env` files to Git!
+** Security**: Never commit `.env` files to Git!
 
 ### Model Configuration (configs/model_config.yaml)
 
@@ -115,7 +115,7 @@ Auto-generated after training with:
 
 ---
 
-## 🔧 Usage
+##  Usage
 
 ### Run Complete Pipeline
 ```bash
@@ -159,34 +159,34 @@ curl -X POST "http://localhost:8000/predict" \
 
 ---
 
-## 🎯 Features
+##  Features
 
 ### Data Processing
-- ✅ Missing value imputation (median strategy)
-- ✅ Outlier detection and handling
-- ✅ Feature scaling and normalization
-- ✅ One-hot encoding for categorical variables
-- ✅ K-Means clustering for location features
+-  Missing value imputation (median strategy)
+-  Outlier detection and handling
+-  Feature scaling and normalization
+-  One-hot encoding for categorical variables
+-  K-Means clustering for location features
 
 ### Model Training
-- ✅ 5 algorithm comparison (Random Forest, Gradient Boosting, etc.)
-- ✅ Bayesian hyperparameter optimization with W&B Sweep
-- ✅ Business metrics (MAPE, Within-X%)
-- ✅ MLflow experiment tracking
-- ✅ Automatic model versioning
+-  5 algorithm comparison (Random Forest, Gradient Boosting, etc.)
+-  Bayesian hyperparameter optimization with W&B Sweep
+-  Business metrics (MAPE, Within-X%)
+-  MLflow experiment tracking
+-  Automatic model versioning
 
 ### MLOps Best Practices
-- ✅ Reproducible pipelines (Hydra configuration)
-- ✅ Experiment tracking (MLflow + W&B)
-- ✅ Model registry (MLflow)
-- ✅ CI/CD with GitHub Actions
-- ✅ FastAPI REST API
-- ✅ Docker containerization
-- ✅ Cloud deployment ready (GCP Cloud Run/Cloud Functions)
+-  Reproducible pipelines (Hydra configuration)
+-  Experiment tracking (MLflow + W&B)
+-  Model registry (MLflow)
+-  CI/CD with GitHub Actions
+-  FastAPI REST API
+-  Docker containerization
+-  Cloud deployment ready (GCP Cloud Run/Cloud Functions)
 
 ---
 
-## 📈 Hyperparameter Optimization
+##  Hyperparameter Optimization
 
 ### W&B Sweep Configuration
 ```yaml
@@ -206,7 +206,7 @@ Parameters:
 
 **User Question**: "¿El modelo usa todos los datos? Se ejecuta muy rápido."
 
-**Answer**: ✅ YES, uses ALL data (20,640 samples, 14 features). Fast because:
+**Answer**:  YES, uses ALL data (20,640 samples, 14 features). Fast because:
 
 | Factor | Explanation |
 |--------|-------------|
@@ -221,7 +221,7 @@ Parameters:
 
 ---
 
-## 🔬 Model Details
+##  Model Details
 
 ### Feature Engineering
 ```python
@@ -255,7 +255,7 @@ random_state: 42
 
 ---
 
-## 🐳 Deployment
+##  Deployment
 
 ### Docker
 ```bash
@@ -297,7 +297,7 @@ See `api/DEPLOYMENT_CLOUD_FUNCTIONS.md` for detailed instructions.
 
 ---
 
-## 📊 Monitoring & Tracking
+##  Monitoring & Tracking
 
 ### MLflow UI
 ```bash
@@ -325,7 +325,7 @@ print(f"Stage: {model.latest_versions[0].current_stage}")
 
 ---
 
-## 🧪 Testing
+##  Testing
 
 ### Run Tests
 ```bash
@@ -347,13 +347,13 @@ GitHub Actions workflows in `.github/workflows/`:
 
 ---
 
-## 🔐 Security
+##  Security
 
 ### Exposed API Key Incident (January 13, 2026)
 
-**⚠️ CRITICAL**: A W&B API key was exposed in Git history. Actions taken:
+** CRITICAL**: A W&B API key was exposed in Git history. Actions taken:
 
-✅ **Completed**:
+ **Completed**:
 1. Key removed from all files
 2. Git history rewritten (all commits cleaned)
 3. Comprehensive .gitignore created
@@ -374,14 +374,14 @@ GitHub Actions workflows in `.github/workflows/`:
 **Why urgent**: Old key is still active and can be used until revoked!
 
 ### Prevention
-- ✅ `.gitignore` blocks `.env`, credentials, API keys
-- ✅ GitHub Actions uses secrets (not hardcoded)
-- ✅ GitGuardian monitors for exposed secrets
-- 🔄 Consider adding `git-secrets` pre-commit hook
+-  `.gitignore` blocks `.env`, credentials, API keys
+-  GitHub Actions uses secrets (not hardcoded)
+-  GitGuardian monitors for exposed secrets
+-  Consider adding `git-secrets` pre-commit hook
 
 ---
 
-## 📚 Documentation
+##  Documentation
 
 ### Key Files
 - `README.md` (this file) - Complete project documentation
@@ -398,7 +398,7 @@ GitHub Actions workflows in `.github/workflows/`:
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 ### Development Setup
 ```bash
@@ -423,16 +423,16 @@ mypy src/
 
 ---
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### W&B Web UI Error
 **Issue**: `Cannot query field "codePathLocal" on type "RunInfo"`
 
 **Solution**: This is a W&B platform GraphQL bug, NOT your pipeline:
-- ✅ Your data is logged successfully
-- ✅ Use MLflow UI instead: `mlflow ui`
-- 🔄 Or clear browser cache and retry
-- 📖 See: https://github.com/wandb/wandb/issues
+-  Your data is logged successfully
+-  Use MLflow UI instead: `mlflow ui`
+-  Or clear browser cache and retry
+-  See: https://github.com/wandb/wandb/issues
 
 ### Model Not Loading
 ```python
@@ -451,7 +451,7 @@ gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
 ---
 
-## 📞 Support
+##  Support
 
 - **Issues**: https://github.com/carlosjimenez88M/mlops-hand-on-ML-and-pytorch/issues
 - **Email**: danieljimenez88m@gmail.com
@@ -459,13 +459,13 @@ gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
 ---
 
-## 📄 License
+##  License
 
 This project is licensed under the MIT License.
 
 ---
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - **Dataset**: California Housing Prices (Scikit-learn)
 - **Tools**: MLflow, Weights & Biases, Hydra, FastAPI
@@ -474,6 +474,6 @@ This project is licensed under the MIT License.
 
 ---
 
-**Built with ❤️ using MLOps best practices**
+**Built with  using MLOps best practices**
 
-**Last Updated**: January 13, 2026 | **Model Version**: 5 | **Status**: Production Ready 🚀
+**Last Updated**: January 13, 2026 | **Model Version**: 5 | **Status**: Production Ready 

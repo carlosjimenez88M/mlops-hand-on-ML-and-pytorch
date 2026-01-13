@@ -215,7 +215,7 @@ class ModelSelector:
             best_metrics = results[best_model_name]["metrics"]
 
             logger.info("\n" + "=" * 70)
-            logger.info(f"🏆 BEST MODEL: {best_model_name}")
+            logger.info(f" BEST MODEL: {best_model_name}")
             logger.info("=" * 70)
             logger.info("Business Metrics:")
             logger.info(f"  MAPE (Mean APE): {best_metrics['mape']:.2f}%")

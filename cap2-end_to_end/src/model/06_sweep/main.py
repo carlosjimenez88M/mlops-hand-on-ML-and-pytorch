@@ -76,10 +76,10 @@ def train():
             **metrics
         })
 
-        logger.info(f"✅ Run completed: MAPE={metrics['mape']:.2f}%")
+        logger.info(f" Run completed: MAPE={metrics['mape']:.2f}%")
 
     except Exception as e:
-        logger.error(f"❌ Run failed: {str(e)}")
+        logger.error(f" Run failed: {str(e)}")
         wandb.log({"error": str(e), "mape": 999.9})  # Log failure
         raise
 
@@ -127,7 +127,7 @@ def main():
 
     TARGET_COLUMN = args.target_column
 
-    logger.info(f"\n✅ Data loaded:")
+    logger.info(f"\n Data loaded:")
     logger.info(f"  Train: {X_TRAIN.shape}")
     logger.info(f"  Test: {X_TEST.shape}")
 
@@ -151,12 +151,12 @@ def main():
         project=args.wandb_project
     )
 
-    logger.info(f"\n✅ Sweep created!")
+    logger.info(f"\n Sweep created!")
     logger.info(f"  Sweep ID: {sweep_id}")
     logger.info(f"  View at: https://wandb.ai/{os.getenv('WANDB_ENTITY', 'your-entity')}/{args.wandb_project}/sweeps/{sweep_id}")
 
     # Run sweep agent
-    logger.info(f"\n🚀 Starting sweep agent ({args.sweep_count} runs)...")
+    logger.info(f"\n Starting sweep agent ({args.sweep_count} runs)...")
     logger.info("=" * 70)
 
     wandb.agent(
@@ -167,7 +167,7 @@ def main():
     )
 
     logger.info("\n" + "=" * 70)
-    logger.info("✅ SWEEP COMPLETED")
+    logger.info(" SWEEP COMPLETED")
     logger.info("=" * 70)
 
     # Get best run from sweep
@@ -178,7 +178,7 @@ def main():
 
         if best_run:
             logger.info("\n" + "=" * 70)
-            logger.info("🏆 BEST HYPERPARAMETERS FOUND")
+            logger.info(" BEST HYPERPARAMETERS FOUND")
             logger.info("=" * 70)
             logger.info(f"Best run: {best_run.name} ({best_run.id})")
             logger.info(f"Best MAPE: {best_run.summary.get('mape', 'N/A'):.2f}%")
@@ -216,7 +216,7 @@ def main():
             with open(best_params_path, 'w') as f:
                 yaml.dump(best_params, f, default_flow_style=False)
 
-            logger.info(f"\n💾 Best parameters saved to: {best_params_path}")
+            logger.info(f"\n Best parameters saved to: {best_params_path}")
             logger.info("=" * 70)
 
             return sweep_id, best_params

@@ -120,7 +120,7 @@ def train_final_model(
     )
 
     model.fit(X_train, y_train)
-    logger.info("✅ Training completed")
+    logger.info(" Training completed")
 
     return model
 
@@ -179,4 +179,4 @@ def save_model_locally(model: RandomForestRegressor, output_path: Path) -> None:
     with open(output_path, 'wb') as f:
         pickle.dump(model, f)
 
-    logger.info(f"💾 Model saved to: {output_path}")
+    logger.info(f" Model saved to: {output_path}")

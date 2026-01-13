@@ -360,24 +360,24 @@ gcloud run services update housing-price-api --min-instances=1
 
 ```
 api/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                 # FastAPI application
-│   ├── core/
-│   │   ├── config.py           # Configuration
-│   │   └── model_loader.py     # Model loading logic
-│   ├── models/
-│   │   └── schemas.py          # Pydantic models
-│   └── routers/
-│       └── predict.py          # Prediction endpoints
-├── tests/
-│   ├── conftest.py            # Test fixtures
-│   └── test_api.py            # API tests
-├── Dockerfile                 # Container definition
-├── requirements.txt           # Python dependencies
-├── pytest.ini                 # Pytest configuration
-├── deploy_to_cloudrun.sh     # Deployment script
-└── cloudrun.yaml             # Cloud Run config
+ app/
+    __init__.py
+    main.py                 # FastAPI application
+    core/
+       config.py           # Configuration
+       model_loader.py     # Model loading logic
+    models/
+       schemas.py          # Pydantic models
+    routers/
+        predict.py          # Prediction endpoints
+ tests/
+    conftest.py            # Test fixtures
+    test_api.py            # API tests
+ Dockerfile                 # Container definition
+ requirements.txt           # Python dependencies
+ pytest.ini                 # Pytest configuration
+ deploy_to_cloudrun.sh     # Deployment script
+ cloudrun.yaml             # Cloud Run config
 ```
 
 ## Error Handling
