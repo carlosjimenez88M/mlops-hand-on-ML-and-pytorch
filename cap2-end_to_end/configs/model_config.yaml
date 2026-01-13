@@ -18,8 +18,8 @@ model:
   local_path: models/trained/housing_price_model.pkl
   mae: 36119.02402386175
   mape: 20.4002041040709
-  mlflow_model_uri: runs:/c187cc8766144a5fbeac5bee5871d209/model
-  mlflow_run_id: c187cc8766144a5fbeac5bee5871d209
+  mlflow_model_uri: runs:/4193520523214eb0bfe97eb5e8cb9382/model
+  mlflow_run_id: 4193520523214eb0bfe97eb5e8cb9382
   name: housing_price_model
   num_features: 14
   parameters:
@@ -34,4 +34,4 @@ model:
   stage: Staging
   sweep_id: f73ao31m
   target_variable: median_house_value
-  version: '4'
+  version: '5'
