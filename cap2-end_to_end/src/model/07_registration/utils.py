@@ -20,6 +20,17 @@ def mean_absolute_percentage_error(y_true: np.ndarray, y_pred: np.ndarray) -> fl
     return float(np.mean(np.abs((y_true - y_pred) / y_true)) * 100)
 
 
+def symmetric_mean_absolute_percentage_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Calculate Symmetric MAPE (SMAPE) - less biased than MAPE."""
+    denominator = (np.abs(y_true) + np.abs(y_pred)) / 2
+    return float(np.mean(np.abs(y_true - y_pred) / denominator) * 100)
+
+
+def weighted_mean_absolute_percentage_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Calculate Weighted MAPE (wMAPE) - better for aggregate accuracy."""
+    return float(np.sum(np.abs(y_true - y_pred)) / np.sum(np.abs(y_true)) * 100)
+
+
 def predictions_within_threshold(
     y_true: np.ndarray,
     y_pred: np.ndarray,
@@ -131,7 +142,7 @@ def evaluate_model(
     y_test: pd.Series
 ) -> Dict[str, float]:
     """
-    Evaluate model and return comprehensive metrics.
+    Evaluate model and return comprehensive metrics including multiple percentage error metrics.
 
     Args:
         model: Trained model
@@ -150,6 +161,8 @@ def evaluate_model(
         "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
         "r2": float(r2_score(y_test, y_pred)),
         "mape": mean_absolute_percentage_error(y_true, y_pred),
+        "smape": symmetric_mean_absolute_percentage_error(y_true, y_pred),
+        "wmape": weighted_mean_absolute_percentage_error(y_true, y_pred),
         "median_ape": float(np.median(np.abs((y_true - y_pred) / y_true)) * 100),
         "within_5pct": predictions_within_threshold(y_true, y_pred, 0.05),
         "within_10pct": predictions_within_threshold(y_true, y_pred, 0.10),
@@ -158,6 +171,8 @@ def evaluate_model(
 
     logger.info("\nFinal Model Metrics:")
     logger.info(f"  MAPE: {metrics['mape']:.2f}%")
+    logger.info(f"  SMAPE: {metrics['smape']:.2f}%")
+    logger.info(f"  wMAPE: {metrics['wmape']:.2f}%")
     logger.info(f"  Median APE: {metrics['median_ape']:.2f}%")
     logger.info(f"  Within 10%: {metrics['within_10pct']:.1f}%")
     logger.info(f"  RMSE: {metrics['rmse']:.2f}")

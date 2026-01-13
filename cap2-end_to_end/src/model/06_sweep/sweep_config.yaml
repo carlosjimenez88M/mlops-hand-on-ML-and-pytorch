@@ -1,13 +1,14 @@
 # =================================================================
 # W&B Sweep Configuration for Random Forest Hyperparameter Tuning
-# Based on: https://wandb.ai/aman-arora/mlops-course-001/reports/Random-Forest-Regression
 # Author: Carlos Daniel Jiménez
 # =================================================================
 
 program: main.py
 method: bayes  # Bayesian optimization for efficient search
+
+# Primary optimization metric
 metric:
-  name: mape  # Mean Absolute Percentage Error (business-friendly metric)
+  name: wmape  # Weighted MAPE (less biased than MAPE, better for aggregates)
   goal: minimize
 
 parameters:
@@ -30,12 +31,22 @@ parameters:
   max_features:
     values: ['sqrt', 'log2']
 
-# Early stopping to save compute
+# Improved Early Stopping Configuration
+# Hyperband algorithm eliminates poorly performing runs early
 early_terminate:
   type: hyperband
-  min_iter: 5
-  eta: 2
-  s: 2
+  min_iter: 10   # Minimum runs before early termination (increased from 5)
+  eta: 3         # Proportion of runs to eliminate (1/3 kept, increased from 2)
+  s: 2           # Bracket size
 
-name: housing-rf-sweep
-description: "Optimize Random Forest hyperparameters for house price prediction"
+# Additional metrics to track (logged but not optimized)
+# These help understand model behavior even if not the primary optimization target
+# - mape: Standard percentage error (biased toward low values)
+# - smape: Symmetric MAPE (less biased)
+# - wmape: Weighted MAPE (primary metric)
+# - median_ape: Robust to outliers
+# - within_10pct: Prediction accuracy threshold
+# - feature_importance_*: Top 10 most important features
+
+name: housing-rf-sweep-improved
+description: "Optimize Random Forest with comprehensive metrics and feature importance tracking"

@@ -24,18 +24,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global variables for data (loaded once, reused across sweep runs)
-X_TRAIN = None
-X_TEST = None
-Y_TRAIN = None
-Y_TEST = None
-TARGET_COLUMN = None
+# Module-level data cache (loaded once, reused across sweep runs)
+_data_cache = {
+    "X_train": None,
+    "X_test": None,
+    "y_train": None,
+    "y_test": None,
+    "feature_names": None
+}
 
 
 def train():
     """
     Training function called by W&B Sweep agent.
     This function is executed for each hyperparameter combination.
+
+    Uses module-level data cache to avoid reloading data on each run.
     """
     # Initialize W&B run (managed by sweep agent)
     run = wandb.init()
@@ -64,23 +68,46 @@ def train():
             'random_state': 42
         }
 
-        # Train model
-        model = train_random_forest(X_TRAIN, Y_TRAIN, params)
+        # Train model using cached data
+        model = train_random_forest(
+            _data_cache["X_train"],
+            _data_cache["y_train"],
+            params
+        )
 
         # Evaluate model
-        metrics = evaluate_model(model, X_TEST, Y_TEST)
+        metrics = evaluate_model(
+            model,
+            _data_cache["X_test"],
+            _data_cache["y_test"]
+        )
 
-        # Log metrics to W&B
+        # Log feature importances to W&B
+        from utils import log_feature_importances
+        feature_importances = log_feature_importances(
+            model,
+            _data_cache["feature_names"]
+        )
+
+        # Log metrics and feature importances to W&B
         wandb.log({
             **params,
-            **metrics
+            **metrics,
+            **{f"feature_importance_{k}": v for k, v in list(feature_importances.items())[:10]}
         })
 
-        logger.info(f" Run completed: MAPE={metrics['mape']:.2f}%")
+        logger.info(f" Run completed: MAPE={metrics['mape']:.2f}% | "
+                   f"SMAPE={metrics['smape']:.2f}% | wMAPE={metrics['wmape']:.2f}%")
 
     except Exception as e:
         logger.error(f" Run failed: {str(e)}")
-        wandb.log({"error": str(e), "mape": 999.9})  # Log failure
+        # Log failure with high error score
+        wandb.log({
+            "error": str(e),
+            "mape": 999.9,
+            "smape": 999.9,
+            "wmape": 999.9
+        })
         raise
 
     finally:
@@ -114,22 +141,26 @@ def main():
     logger.info(f"Target: {args.target_column}")
     logger.info(f"Sweep runs: {args.sweep_count}")
 
-    # Load data ONCE (shared across all sweep runs)
-    global X_TRAIN, X_TEST, Y_TRAIN, Y_TEST, TARGET_COLUMN
-
+    # Load data ONCE into module-level cache (shared across all sweep runs)
     logger.info("\nLoading training data...")
     train_df = download_data_from_gcs(args.bucket_name, args.gcs_train_path)
-    X_TRAIN, Y_TRAIN = prepare_data(train_df, args.target_column)
+    X_train, y_train = prepare_data(train_df, args.target_column)
 
     logger.info("Loading test data...")
     test_df = download_data_from_gcs(args.bucket_name, args.gcs_test_path)
-    X_TEST, Y_TEST = prepare_data(test_df, args.target_column)
+    X_test, y_test = prepare_data(test_df, args.target_column)
 
-    TARGET_COLUMN = args.target_column
+    # Store in module-level cache
+    _data_cache["X_train"] = X_train
+    _data_cache["X_test"] = X_test
+    _data_cache["y_train"] = y_train
+    _data_cache["y_test"] = y_test
+    _data_cache["feature_names"] = X_train.columns.tolist()
 
     logger.info(f"\n Data loaded:")
-    logger.info(f"  Train: {X_TRAIN.shape}")
-    logger.info(f"  Test: {X_TEST.shape}")
+    logger.info(f"  Train: {X_train.shape}")
+    logger.info(f"  Test: {X_test.shape}")
+    logger.info(f"  Features: {len(_data_cache['feature_names'])}")
 
     # Load sweep configuration
     sweep_config_path = Path(__file__).parent / args.sweep_config

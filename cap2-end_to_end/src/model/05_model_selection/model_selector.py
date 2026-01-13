@@ -140,27 +140,30 @@ class ModelSelector:
         for i, (model_name, model) in enumerate(models.items(), 1):
             logger.info(f"\n[{i}/{len(models)}] Training {model_name}...")
 
-            # Train model with grid search
-            best_model, best_params, training_time = train_model_with_gridsearch(
+            # Train model with 5-fold cross-validation via grid search
+            best_model, best_params, training_time, cv_metrics = train_model_with_gridsearch(
                 model,
                 param_grids[model_name],
                 X_train,
-                y_train
+                y_train,
+                cv=5
             )
 
-            # Evaluate model
+            # Evaluate model on held-out test set
             metrics = evaluate_model(best_model, X_test, y_test)
 
-            # Store results
+            # Store results including CV metrics
             results[model_name] = {
                 "model": best_model,
                 "best_params": best_params,
                 "metrics": metrics,
+                "cv_metrics": cv_metrics,
                 "training_time": training_time
             }
 
-            logger.info(f"  MAPE: {metrics['mape']:.2f}% | R²: {metrics['r2']:.4f} | "
-                       f"Within-10%: {metrics['within_10pct']:.1f}% | "
+            logger.info(f"  Test MAPE: {metrics['mape']:.2f}% | SMAPE: {metrics['smape']:.2f}% | "
+                       f"wMAPE: {metrics['wmape']:.2f}% | R²: {metrics['r2']:.4f}")
+            logger.info(f"  CV MAE: {cv_metrics['mean_test_score']:.2f} (±{cv_metrics['std_test_score']:.2f}) | "
                        f"Time: {training_time:.2f}s")
 
         return results
@@ -213,20 +216,28 @@ class ModelSelector:
             best_model_name = self.get_best_model(results)
             best_model = results[best_model_name]["model"]
             best_metrics = results[best_model_name]["metrics"]
+            best_cv_metrics = results[best_model_name]["cv_metrics"]
 
             logger.info("\n" + "=" * 70)
             logger.info(f" BEST MODEL: {best_model_name}")
             logger.info("=" * 70)
-            logger.info("Business Metrics:")
+            logger.info("Business Metrics (Test Set):")
             logger.info(f"  MAPE (Mean APE): {best_metrics['mape']:.2f}%")
+            logger.info(f"  SMAPE (Symmetric MAPE): {best_metrics['smape']:.2f}%")
+            logger.info(f"  wMAPE (Weighted MAPE): {best_metrics['wmape']:.2f}%")
             logger.info(f"  Median APE: {best_metrics['median_ape']:.2f}%")
             logger.info(f"  Within ±5%: {best_metrics['within_5pct']:.1f}%")
             logger.info(f"  Within ±10%: {best_metrics['within_10pct']:.1f}%")
             logger.info(f"  Within ±15%: {best_metrics['within_15pct']:.1f}%")
-            logger.info("\nTraditional Metrics:")
+            logger.info("\nTraditional Metrics (Test Set):")
             logger.info(f"  R²: {best_metrics['r2']:.4f}")
             logger.info(f"  RMSE: ${best_metrics['rmse']:,.2f}")
             logger.info(f"  MAE: ${best_metrics['mae']:,.2f}")
+            logger.info("\nCross-Validation Results (5-fold):")
+            logger.info(f"  Mean CV MAE: ${best_cv_metrics['mean_test_score']:,.2f} "
+                       f"(±${best_cv_metrics['std_test_score']:,.2f})")
+            logger.info(f"  Mean CV Train MAE: ${best_cv_metrics['mean_train_score']:,.2f} "
+                       f"(±${best_cv_metrics['std_train_score']:,.2f})")
             logger.info("=" * 70)
 
             # Upload best model to GCS

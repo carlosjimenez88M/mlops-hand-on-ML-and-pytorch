@@ -18,6 +18,23 @@ def mean_absolute_percentage_error(y_true: np.ndarray, y_pred: np.ndarray) -> fl
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
 
+def symmetric_mean_absolute_percentage_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """
+    Calculate Symmetric MAPE (SMAPE).
+    Less biased than MAPE toward underestimation.
+    """
+    denominator = (np.abs(y_true) + np.abs(y_pred)) / 2
+    return np.mean(np.abs(y_true - y_pred) / denominator) * 100
+
+
+def weighted_mean_absolute_percentage_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """
+    Calculate Weighted MAPE (wMAPE).
+    Better for aggregate forecast accuracy.
+    """
+    return np.sum(np.abs(y_true - y_pred)) / np.sum(np.abs(y_true)) * 100
+
+
 def predictions_within_threshold(
     y_true: np.ndarray,
     y_pred: np.ndarray,
@@ -101,7 +118,7 @@ def evaluate_model(
     y_test: pd.Series
 ) -> Dict[str, float]:
     """
-    Evaluate model and return metrics.
+    Evaluate model and return comprehensive metrics.
 
     Args:
         model: Trained model
@@ -109,24 +126,59 @@ def evaluate_model(
         y_test: Test target
 
     Returns:
-        Dict with evaluation metrics
+        Dict with evaluation metrics including multiple percentage error metrics
     """
     y_pred = model.predict(X_test)
     y_true = y_test.values
 
     metrics = {
-        "mae": mean_absolute_error(y_test, y_pred),
-        "rmse": np.sqrt(mean_squared_error(y_test, y_pred)),
-        "r2": r2_score(y_test, y_pred),
-        "mape": mean_absolute_percentage_error(y_true, y_pred),
-        "within_5pct": predictions_within_threshold(y_true, y_pred, 0.05),
-        "within_10pct": predictions_within_threshold(y_true, y_pred, 0.10),
-        "within_15pct": predictions_within_threshold(y_true, y_pred, 0.15),
+        "mae": float(mean_absolute_error(y_test, y_pred)),
+        "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
+        "r2": float(r2_score(y_test, y_pred)),
+        "mape": float(mean_absolute_percentage_error(y_true, y_pred)),
+        "smape": float(symmetric_mean_absolute_percentage_error(y_true, y_pred)),
+        "wmape": float(weighted_mean_absolute_percentage_error(y_true, y_pred)),
+        "median_ape": float(np.median(np.abs((y_true - y_pred) / y_true)) * 100),
+        "within_5pct": float(predictions_within_threshold(y_true, y_pred, 0.05)),
+        "within_10pct": float(predictions_within_threshold(y_true, y_pred, 0.10)),
+        "within_15pct": float(predictions_within_threshold(y_true, y_pred, 0.15)),
     }
 
-    logger.info(f"Evaluation metrics: MAPE={metrics['mape']:.2f}%, Within10%={metrics['within_10pct']:.1f}%")
+    logger.info(f"MAPE={metrics['mape']:.2f}% | SMAPE={metrics['smape']:.2f}% | "
+                f"wMAPE={metrics['wmape']:.2f}% | Within10%={metrics['within_10pct']:.1f}%")
 
     return metrics
+
+
+def log_feature_importances(model: RandomForestRegressor, feature_names: list) -> Dict[str, float]:
+    """
+    Extract and return feature importances from Random Forest model.
+
+    Args:
+        model: Trained Random Forest model
+        feature_names: List of feature names
+
+    Returns:
+        Dict mapping feature names to importance scores
+    """
+    importances = model.feature_importances_
+    feature_importance_dict = {
+        feature_names[i]: float(importances[i])
+        for i in range(len(feature_names))
+    }
+
+    # Sort by importance
+    sorted_importances = dict(sorted(
+        feature_importance_dict.items(),
+        key=lambda x: x[1],
+        reverse=True
+    ))
+
+    logger.info(f"\nTop 5 Most Important Features:")
+    for i, (feature, importance) in enumerate(list(sorted_importances.items())[:5], 1):
+        logger.info(f"  {i}. {feature}: {importance:.4f}")
+
+    return sorted_importances
 
 
 def prepare_data(
