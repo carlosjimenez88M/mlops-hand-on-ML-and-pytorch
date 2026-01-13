@@ -64,77 +64,84 @@ on:
 env:
   PYTHON_VERSION: "3.12"
   WANDB_PROJECT: "housing-mlops-gcp"
+  WORKING_DIR: "cap2-end_to_end"
 
 jobs:
   # Job 1: Unit Tests
   unit-tests:
-    name: 🧪 Unit Tests
+    name: Unit Tests
     runs-on: ubuntu-latest
     if: ${{ github.event.inputs.run_tests == 'true' }}
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
 
     steps:
-      - name: 📥 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 📦 Install uv package manager
+      - name: Install uv package manager
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: 🔧 Install dependencies
+      - name: Install dependencies
         run: |
           uv pip install --system -e .
 
-      - name: ✅ Run tests with coverage
+      - name: Run tests with coverage
         run: |
           uv run pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
 
-      - name: 📊 Upload coverage to Codecov
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          file: ./coverage.xml
+          file: ./cap2-end_to_end/coverage.xml
           flags: unittests
           fail_ci_if_error: false
 
   # Job 2: Step 01 - Download Data
   step-01-download:
-    name: 📥 Step 01 - Download Data
+    name: Step 01 - Download Data
     runs-on: ubuntu-latest
     needs: unit-tests
     if: |
       always() &&
       (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped') &&
       github.event.inputs.run_step_01 == 'true'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
 
     steps:
-      - name: 📥 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 📦 Install uv package manager
+      - name: Install uv package manager
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: 🔧 Install dependencies
+      - name: Install dependencies
         run: |
           uv pip install --system -e .
 
-      - name: 🔐 Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-      - name: ⚙️ Configure environment
+      - name: Configure environment
         run: |
           echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
@@ -142,54 +149,57 @@ jobs:
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
-      - name: 🚀 Run Step 01 - Download Data
+      - name: Run Step 01 - Download Data
         run: |
           python main.py main.execute_steps='["01_download_data"]'
 
-      - name: 📦 Upload Step 01 artifacts
+      - name: Upload Step 01 artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: step-01-outputs
           path: |
-            mlruns/
-            outputs/
+            cap2-end_to_end/mlruns/
+            cap2-end_to_end/outputs/
           retention-days: 7
 
   # Job 3: Step 02 - Preprocessing & Imputation
   step-02-preprocessing:
-    name: 🧹 Step 02 - Preprocessing & Imputation
+    name: Step 02 - Preprocessing & Imputation
     runs-on: ubuntu-latest
     needs: step-01-download
     if: |
       always() &&
       needs.step-01-download.result == 'success' &&
       github.event.inputs.run_step_02 == 'true'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
 
     steps:
-      - name: 📥 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 📦 Install uv package manager
+      - name: Install uv package manager
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: 🔧 Install dependencies
+      - name: Install dependencies
         run: |
           uv pip install --system -e .
 
-      - name: 🔐 Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-      - name: ⚙️ Configure environment
+      - name: Configure environment
         run: |
           echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
@@ -197,54 +207,57 @@ jobs:
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
-      - name: 🚀 Run Step 02 - Preprocessing & Imputation
+      - name: Run Step 02 - Preprocessing & Imputation
         run: |
           python main.py main.execute_steps='["02_preprocessing_and_imputation"]'
 
-      - name: 📦 Upload Step 02 artifacts
+      - name: Upload Step 02 artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: step-02-outputs
           path: |
-            mlruns/
-            outputs/
+            cap2-end_to_end/mlruns/
+            cap2-end_to_end/outputs/
           retention-days: 7
 
   # Job 4: Step 03 - Feature Engineering
   step-03-feature-engineering:
-    name: ⚙️ Step 03 - Feature Engineering
+    name: Step 03 - Feature Engineering
     runs-on: ubuntu-latest
     needs: step-02-preprocessing
     if: |
       always() &&
       needs.step-02-preprocessing.result == 'success' &&
       github.event.inputs.run_step_03 == 'true'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
 
     steps:
-      - name: 📥 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 📦 Install uv package manager
+      - name: Install uv package manager
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: 🔧 Install dependencies
+      - name: Install dependencies
         run: |
           uv pip install --system -e .
 
-      - name: 🔐 Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-      - name: ⚙️ Configure environment
+      - name: Configure environment
         run: |
           echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
@@ -252,55 +265,58 @@ jobs:
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
-      - name: 🚀 Run Step 03 - Feature Engineering
+      - name: Run Step 03 - Feature Engineering
         run: |
           python main.py main.execute_steps='["03_feature_engineering"]' \
                         feature_engineering.optimize_hyperparams="${{ github.event.inputs.optimize_hyperparams }}"
 
-      - name: 📦 Upload Step 03 artifacts
+      - name: Upload Step 03 artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: step-03-outputs
           path: |
-            mlruns/
-            outputs/
+            cap2-end_to_end/mlruns/
+            cap2-end_to_end/outputs/
           retention-days: 7
 
   # Job 5: Step 04 - Data Segregation
   step-04-segregation:
-    name: 📊 Step 04 - Data Segregation
+    name: Step 04 - Data Segregation
     runs-on: ubuntu-latest
     needs: step-03-feature-engineering
     if: |
       always() &&
       needs.step-03-feature-engineering.result == 'success' &&
       github.event.inputs.run_step_04 == 'true'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
 
     steps:
-      - name: 📥 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 📦 Install uv package manager
+      - name: Install uv package manager
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: 🔧 Install dependencies
+      - name: Install dependencies
         run: |
           uv pip install --system -e .
 
-      - name: 🔐 Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-      - name: ⚙️ Configure environment
+      - name: Configure environment
         run: |
           echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
@@ -308,54 +324,57 @@ jobs:
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
-      - name: 🚀 Run Step 04 - Data Segregation
+      - name: Run Step 04 - Data Segregation
         run: |
           python main.py main.execute_steps='["04_segregation"]'
 
-      - name: 📦 Upload Step 04 artifacts
+      - name: Upload Step 04 artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: step-04-outputs
           path: |
-            mlruns/
-            outputs/
+            cap2-end_to_end/mlruns/
+            cap2-end_to_end/outputs/
           retention-days: 7
 
   # Job 6: Step 05 - Model Selection & Training
   step-05-model-selection:
-    name: 🤖 Step 05 - Model Selection & Training
+    name: Step 05 - Model Selection & Training
     runs-on: ubuntu-latest
     needs: step-04-segregation
     if: |
       always() &&
       needs.step-04-segregation.result == 'success' &&
       github.event.inputs.run_step_05 == 'true'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
 
     steps:
-      - name: 📥 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 📦 Install uv package manager
+      - name: Install uv package manager
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: 🔧 Install dependencies
+      - name: Install dependencies
         run: |
           uv pip install --system -e .
 
-      - name: 🔐 Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-      - name: ⚙️ Configure environment
+      - name: Configure environment
         run: |
           echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
@@ -363,55 +382,58 @@ jobs:
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
-      - name: 🚀 Run Step 05 - Model Selection & Training
+      - name: Run Step 05 - Model Selection & Training
         run: |
           python main.py main.execute_steps='["05_model_selection"]'
 
-      - name: 📦 Upload model artifacts
+      - name: Upload model artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: step-05-model-artifacts
           path: |
-            mlruns/
-            outputs/
-            models/
+            cap2-end_to_end/mlruns/
+            cap2-end_to_end/outputs/
+            cap2-end_to_end/models/
           retention-days: 30
 
-  # Job 6: Step 06 - Hyperparameter Sweep
+  # Job 7: Step 06 - Hyperparameter Sweep
   step-06-sweep:
-    name: 🔍 Step 06 - Hyperparameter Sweep
+    name: Step 06 - Hyperparameter Sweep
     runs-on: ubuntu-latest
     needs: step-05-model-selection
     if: |
       always() &&
       needs.step-05-model-selection.result == 'success' &&
       github.event.inputs.run_step_06 == 'true'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
 
     steps:
-      - name: 📥 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 📦 Install uv package manager
+      - name: Install uv package manager
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: 🔧 Install dependencies
+      - name: Install dependencies
         run: |
           uv pip install --system -e .
 
-      - name: 🔐 Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-      - name: ⚙️ Configure environment
+      - name: Configure environment
         run: |
           echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
@@ -419,62 +441,65 @@ jobs:
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
-      - name: 🚀 Run Step 06 - Hyperparameter Sweep
+      - name: Run Step 06 - Hyperparameter Sweep
         run: |
           python main.py main.execute_steps='["06_sweep"]' \
                         sweep.sweep_count=${{ github.event.inputs.sweep_count }}
 
-      - name: 📦 Upload sweep results
+      - name: Upload sweep results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: step-06-sweep-results
           path: |
-            src/model/06_sweep/best_params.yaml
-            mlruns/
-            outputs/
+            cap2-end_to_end/src/model/06_sweep/best_params.yaml
+            cap2-end_to_end/mlruns/
+            cap2-end_to_end/outputs/
           retention-days: 30
 
-  # Job 7: Step 07 - Model Registration
+  # Job 8: Step 07 - Model Registration
   step-07-registration:
-    name: 📝 Step 07 - Model Registration
+    name: Step 07 - Model Registration
     runs-on: ubuntu-latest
     needs: step-06-sweep
     if: |
       always() &&
       needs.step-06-sweep.result == 'success' &&
       github.event.inputs.run_step_07 == 'true'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
 
     steps:
-      - name: 📥 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 📦 Install uv package manager
+      - name: Install uv package manager
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: 🔧 Install dependencies
+      - name: Install dependencies
         run: |
           uv pip install --system -e .
 
-      - name: 🔐 Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-      - name: 📥 Download sweep results
+      - name: Download sweep results
         uses: actions/download-artifact@v4
         with:
           name: step-06-sweep-results
-          path: .
+          path: cap2-end_to_end
 
-      - name: ⚙️ Configure environment
+      - name: Configure environment
         run: |
           echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
@@ -482,24 +507,24 @@ jobs:
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
-      - name: 🚀 Run Step 07 - Model Registration
+      - name: Run Step 07 - Model Registration
         run: |
           python main.py main.execute_steps='["07_registration"]'
 
-      - name: 📦 Upload registered model artifacts
+      - name: Upload registered model artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: step-07-registered-model
           path: |
-            models/trained/
-            mlruns/
-            outputs/
+            cap2-end_to_end/models/trained/
+            cap2-end_to_end/mlruns/
+            cap2-end_to_end/outputs/
           retention-days: 90
 
-  # Job 8: Pipeline Summary
+  # Job 9: Pipeline Summary
   pipeline-summary:
-    name: 📋 Pipeline Summary
+    name: Pipeline Summary
     runs-on: ubuntu-latest
     needs:
       - unit-tests
@@ -513,32 +538,32 @@ jobs:
     if: always()
 
     steps:
-      - name: 📝 Generate execution summary
+      - name: Generate execution summary
         run: |
-          echo "## 🚀 MLOps Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## MLOps Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Trigger:** Manual execution" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Hyperparameter Optimization:** ${{ github.event.inputs.optimize_hyperparams }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Pipeline Steps Status" >> $GITHUB_STEP_SUMMARY
+          echo "### Pipeline Steps Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Step | Status | Executed |" >> $GITHUB_STEP_SUMMARY
           echo "|------|--------|----------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 🧪 Unit Tests | ${{ needs.unit-tests.result }} | ${{ github.event.inputs.run_tests }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📥 01 - Download Data | ${{ needs.step-01-download.result }} | ${{ github.event.inputs.run_step_01 }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🧹 02 - Preprocessing | ${{ needs.step-02-preprocessing.result }} | ${{ github.event.inputs.run_step_02 }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| ⚙️ 03 - Feature Engineering | ${{ needs.step-03-feature-engineering.result }} | ${{ github.event.inputs.run_step_03 }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📊 04 - Segregation | ${{ needs.step-04-segregation.result }} | ${{ github.event.inputs.run_step_04 }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🤖 05 - Model Selection | ${{ needs.step-05-model-selection.result }} | ${{ github.event.inputs.run_step_05 }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔍 06 - Hyperparameter Sweep | ${{ needs.step-06-sweep.result }} | ${{ github.event.inputs.run_step_06 }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📝 07 - Model Registration | ${{ needs.step-07-registration.result }} | ${{ github.event.inputs.run_step_07 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} | ${{ github.event.inputs.run_tests }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 01 - Download Data | ${{ needs.step-01-download.result }} | ${{ github.event.inputs.run_step_01 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 02 - Preprocessing | ${{ needs.step-02-preprocessing.result }} | ${{ github.event.inputs.run_step_02 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 03 - Feature Engineering | ${{ needs.step-03-feature-engineering.result }} | ${{ github.event.inputs.run_step_03 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 04 - Segregation | ${{ needs.step-04-segregation.result }} | ${{ github.event.inputs.run_step_04 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 05 - Model Selection | ${{ needs.step-05-model-selection.result }} | ${{ github.event.inputs.run_step_05 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 06 - Hyperparameter Sweep | ${{ needs.step-06-sweep.result }} | ${{ github.event.inputs.run_step_06 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 07 - Model Registration | ${{ needs.step-07-registration.result }} | ${{ github.event.inputs.run_step_07 }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
           echo "- Step outputs available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
           echo "- Model files retained for 30 days" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Monitoring" >> $GITHUB_STEP_SUMMARY
+          echo "### Monitoring" >> $GITHUB_STEP_SUMMARY
           echo "- View detailed metrics in [Weights & Biases](https://wandb.ai/${{ secrets.WANDB_ENTITY }}/${{ env.WANDB_PROJECT }})" >> $GITHUB_STEP_SUMMARY
           echo "- Check MLflow tracking in artifacts" >> $GITHUB_STEP_SUMMARY
