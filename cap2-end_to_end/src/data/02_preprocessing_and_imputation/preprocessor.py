@@ -104,8 +104,11 @@ class DataPreprocessor:
 
             logger.info(f"Downloaded: {size_mb:.2f} MB")
 
-            # Load into DataFrame
-            df = pd.read_csv(io.BytesIO(content_bytes))
+            # Load into DataFrame (supports CSV and Parquet)
+            if gcs_path.endswith('.parquet'):
+                df = pd.read_parquet(io.BytesIO(content_bytes))
+            else:
+                df = pd.read_csv(io.BytesIO(content_bytes))
             logger.info(f"Loaded DataFrame: {len(df):,} rows, {len(df.columns)} columns")
 
             self.df_input = df
@@ -239,10 +242,16 @@ class DataPreprocessor:
         logger.info(f"Uploading to GCS: gs://{self.config.bucket_name}/{gcs_path}")
 
         try:
-            # Convert DataFrame to CSV bytes
-            csv_buffer = io.StringIO()
-            df.to_csv(csv_buffer, index=False)
-            csv_bytes = csv_buffer.getvalue().encode('utf-8')
+            # Convert DataFrame to bytes (CSV or Parquet)
+            if gcs_path.endswith('.parquet'):
+                buffer = io.BytesIO()
+                df.to_parquet(buffer, index=False, engine='pyarrow')
+                buffer.seek(0)
+                data_bytes = buffer.getvalue()
+            else:
+                csv_buffer = io.StringIO()
+                df.to_csv(csv_buffer, index=False)
+                data_bytes = csv_buffer.getvalue().encode('utf-8')
 
             # Upload to GCS
             blob = self.bucket.blob(gcs_path)
@@ -255,10 +264,10 @@ class DataPreprocessor:
                 "rows": str(len(df)),
                 "columns": str(len(df.columns)),
                 "imputation_strategy": self.config.imputation_strategy,
-                "file_size_mb": str(len(csv_bytes) / (1024 * 1024))
+                "file_size_mb": str(len(data_bytes) / (1024 * 1024))
             }
 
-            blob.upload_from_string(csv_bytes, content_type='text/csv')
+            blob.upload_from_string(data_bytes, content_type='text/csv')
 
             gcs_uri = f"gs://{self.config.bucket_name}/{gcs_path}"
             logger.info(f"Uploaded to GCS: {gcs_uri}")

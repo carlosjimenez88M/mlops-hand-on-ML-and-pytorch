@@ -308,29 +308,29 @@ class DataDownloader:
             'downloaded_at': datetime.now()
         }
 
-        # If CSV, get additional stats
-        if self.config.gcs_output_path.endswith('.csv'):
-            csv_stats = self._get_csv_stats(content)
-            if csv_stats:
-                stats_dict.update(csv_stats)
+        # Get data stats (works for CSV or Parquet)
+        data_stats = self._get_data_stats(content)
+        if data_stats:
+            stats_dict.update(data_stats)
 
         return FileStats(**stats_dict)
 
-    def _get_csv_stats(self, content: bytes) -> Optional[Dict[str, any]]:
+    def _get_data_stats(self, content: bytes) -> Optional[Dict[str, any]]:
         """
-        Get statistics from CSV content.
+        Get statistics from data content (CSV or Parquet).
 
         Args:
-            content: CSV content in bytes
+            content: Data content in bytes
 
         Returns:
-            Dictionary with CSV statistics or None if failed
+            Dictionary with data statistics or None if failed
         """
         try:
+            # Try to load as DataFrame (content is always CSV from source)
             df = pd.read_csv(io.BytesIO(content))
 
             logger.info(
-                f"CSV Stats: {len(df):,} rows, {len(df.columns)} columns"
+                f"Data Stats: {len(df):,} rows, {len(df.columns)} columns"
             )
 
             return {
@@ -341,15 +341,41 @@ class DataDownloader:
             }
 
         except Exception as e:
-            logger.warning(f"Could not get CSV stats: {e}")
+            logger.warning(f"Could not get data stats: {e}")
             return None
+
+    def _convert_to_parquet(self, csv_content: bytes) -> bytes:
+        """
+        Convert CSV content to Parquet format.
+
+        Args:
+            csv_content: CSV content in bytes
+
+        Returns:
+            Parquet content in bytes
+        """
+        logger.info("Converting CSV to Parquet format...")
+
+        # Read CSV
+        df = pd.read_csv(io.BytesIO(csv_content))
+
+        # Convert to Parquet
+        buffer = io.BytesIO()
+        df.to_parquet(buffer, index=False, engine='pyarrow')
+        buffer.seek(0)
+
+        parquet_content = buffer.getvalue()
+        logger.info(f"Converted to Parquet: {len(parquet_content) / MB_SIZE:.2f} MB")
+
+        return parquet_content
 
     def upload_to_gcs(self, content: bytes) -> str:
         """
         Upload content directly to GCS from memory.
+        Converts to Parquet if output path ends with .parquet
 
         Args:
-            content: Content in bytes
+            content: Content in bytes (CSV format from source)
 
         Returns:
             Full GCS URI
@@ -362,6 +388,11 @@ class DataDownloader:
 
         gcs_path = self.config.gcs_output_path
 
+        # Convert to Parquet if needed
+        upload_content = content
+        if gcs_path.endswith('.parquet'):
+            upload_content = self._convert_to_parquet(content)
+
         logger.info(
             f"Uploading to GCS: gs://{self.config.bucket_name}/{gcs_path}"
         )
@@ -370,10 +401,10 @@ class DataDownloader:
             blob = self.bucket.blob(gcs_path)
 
             # Set metadata
-            blob.metadata = self._create_blob_metadata(content)
+            blob.metadata = self._create_blob_metadata(upload_content)
 
             # Upload from bytes
-            blob.upload_from_string(content)
+            blob.upload_from_string(upload_content)
 
             gcs_uri = f"gs://{self.config.bucket_name}/{gcs_path}"
             logger.info(f"Uploaded to GCS: {gcs_uri}")

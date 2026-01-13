@@ -113,7 +113,11 @@ class FeatureEngineer:
             blob = self.bucket.blob(blob_path)
             content = blob.download_as_bytes()
 
-            df = pd.read_csv(io.BytesIO(content))
+            # Load DataFrame (supports CSV and Parquet)
+            if blob_path.endswith('.parquet'):
+                df = pd.read_parquet(io.BytesIO(content))
+            else:
+                df = pd.read_csv(io.BytesIO(content))
             logger.info(f"Loaded DataFrame: {df.shape[0]} rows, {df.shape[1]} columns")
 
             return df
@@ -128,12 +132,17 @@ class FeatureEngineer:
             blob_path = self.config.gcs_output_path
             logger.info(f"Uploading to GCS: gs://{self.config.bucket_name}/{blob_path}")
 
-            csv_buffer = io.BytesIO()
-            df.to_csv(csv_buffer, index=False)
-            csv_buffer.seek(0)
+            # Convert to bytes (supports CSV and Parquet)
+            data_buffer = io.BytesIO()
+            if blob_path.endswith('.parquet'):
+                df.to_parquet(data_buffer, index=False, engine='pyarrow')
+            else:
+                df.to_csv(data_buffer, index=False)
+            data_buffer.seek(0)
 
             blob = self.bucket.blob(blob_path)
-            blob.upload_from_file(csv_buffer, content_type='text/csv')
+            content_type = 'application/octet-stream' if blob_path.endswith('.parquet') else 'text/csv'
+            blob.upload_from_file(data_buffer, content_type=content_type)
 
             gcs_uri = f"gs://{self.config.bucket_name}/{blob_path}"
             logger.info(f"Uploaded to: {gcs_uri}")

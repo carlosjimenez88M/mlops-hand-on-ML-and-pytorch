@@ -81,7 +81,11 @@ class ModelSelector:
             blob = self.bucket.blob(gcs_path)
             content = blob.download_as_bytes()
 
-            df = pd.read_csv(io.BytesIO(content))
+            # Load DataFrame (supports CSV and Parquet)
+            if gcs_path.endswith('.parquet'):
+                df = pd.read_parquet(io.BytesIO(content))
+            else:
+                df = pd.read_csv(io.BytesIO(content))
             logger.info(f"Loaded DataFrame: {df.shape[0]} rows, {df.shape[1]} columns")
 
             return df

@@ -1,0 +1,86 @@
+main:
+  project_name: housing-mlops-gcp
+  experiment_name: end_to_end_pipeline
+  execute_steps:
+  - 01_download_data
+  - 02_preprocessing_and_imputation
+  - 03_feature_engineering
+  - 04_segregation
+  - 05_model_selection
+download_data:
+  file_url: https://raw.githubusercontent.com/ageron/handson-ml2/master/datasets/housing/housing.tgz
+  artifact_name: housing_data_raw
+  artifact_type: raw_data
+  artifact_description: California Housing - Raw data downloaded from source
+  gcs_output_path: data/01-raw/housing.csv
+preprocessing:
+  input_artifact_name: housing_data_raw:latest
+  gcs_input_path: data/01-raw/housing.csv
+  gcs_output_path: data/02-processed/housing_processed.csv
+  artifact_name: housing_data_processed
+  artifact_type: processed_data
+  artifact_description: California Housing - Preprocessed with automatic imputation
+  imputation_strategy: auto
+  create_features: 'True'
+gcs:
+  bucket_name: ${oc.env:GCS_BUCKET_NAME}
+  project_id: ${oc.env:GCP_PROJECT_ID}
+  region: ${oc.env:GCP_REGION,us-central1}
+wandb:
+  project: ${oc.env:WANDB_PROJECT,housing-mlops-gcp}
+  entity: ${oc.env:WANDB_ENTITY,null}
+feature_engineering:
+  input_artifact_name: housing_data_processed:latest
+  gcs_input_path: data/02-processed/housing_processed.csv
+  gcs_output_path: data/03-features/housing_features.csv
+  artifact_name: housing_features
+  artifact_type: engineered_features
+  artifact_description: California Housing - Feature engineered data with clustering
+  n_clusters: 10
+  gamma: 0.1
+  random_state: 42
+  optimize_hyperparams: 'True'
+segregation:
+  input_artifact_name: housing_features:latest
+  gcs_input_path: data/03-features/housing_features.csv
+  gcs_train_output_path: data/04-segregated/train.csv
+  gcs_test_output_path: data/04-segregated/test.csv
+  artifact_root: housing_data
+  artifact_type: segregated_data
+  artifact_description: California Housing - Train/Test split
+  test_size: 0.2
+  random_state: 42
+  target_column: median_house_value
+model_selection:
+  train_artifact_name: housing_data_train:latest
+  test_artifact_name: housing_data_test:latest
+  gcs_train_path: data/04-segregated/train.csv
+  gcs_test_path: data/04-segregated/test.csv
+  artifact_name: best_model_selection
+  artifact_type: model
+  artifact_description: Best model selected from multiple algorithms
+  target_column: median_house_value
+  random_state: 42
+training:
+  train_data_artifact: housing_features:latest
+  val_size: 0.2
+  test_size: 0.2
+  random_seed: 42
+  model_type: random_forest
+  hyperparameters:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_split: 2
+    min_samples_leaf: 1
+    random_state: 42
+evaluation:
+  model_artifact: model_export:latest
+  test_data: housing_features:latest
+  metrics:
+  - rmse
+  - mae
+  - r2
+deployment:
+  model_artifact: model_export:latest
+  deployment_target: gcp_vertex_ai
+  endpoint_name: housing-price-predictor
