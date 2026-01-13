@@ -215,6 +215,39 @@ def run_segregation(config: DictConfig, root_path: Path) -> None:
     print("\nData segregation completed successfully!\n")
 
 
+def run_model_selection(config: DictConfig, root_path: Path) -> None:
+    """
+    Execute the model selection step.
+
+    Args:
+        config: Hydra configuration
+        root_path: Project root path
+    """
+    print("\n" + "=" * 70)
+    print("  STEP 5: MODEL SELECTION")
+    print("=" * 70)
+
+    step_path = root_path / "src" / "model" / "05_model_selection"
+
+    mlflow.run(
+        uri=str(step_path),
+        entry_point="main",
+        env_manager="local",
+        parameters={
+            "train_artifact_name": config["model_selection"]["train_artifact_name"],
+            "test_artifact_name": config["model_selection"]["test_artifact_name"],
+            "gcs_train_path": config["model_selection"]["gcs_train_path"],
+            "gcs_test_path": config["model_selection"]["gcs_test_path"],
+            "bucket_name": config["gcs"]["bucket_name"],
+            "wandb_project": config["main"]["project_name"],
+            "target_column": config["model_selection"]["target_column"],
+            "random_state": config["model_selection"]["random_state"],
+        },
+    )
+
+    print("\nModel selection completed successfully!\n")
+
+
 @hydra.main(
     config_path='.',
     config_name="config",
@@ -254,14 +287,8 @@ def go(config: DictConfig) -> None:
         if "04_segregation" in steps_to_execute:
             run_segregation(config, root_path)
 
-        if "05_train_model" in steps_to_execute:
-            print("\nModel training step not implemented yet\n")
-
-        if "06_evaluate_model" in steps_to_execute:
-            print("\nModel evaluation step not implemented yet\n")
-
-        if "07_deploy_model" in steps_to_execute:
-            print("\nModel deployment step not implemented yet\n")
+        if "05_model_selection" in steps_to_execute:
+            run_model_selection(config, root_path)
 
         # Print summary
         elapsed_time = time.time() - start_time

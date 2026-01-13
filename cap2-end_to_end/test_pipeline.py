@@ -93,6 +93,7 @@ def check_mlproject_files():
         "02_preprocessing_and_imputation": "src/data/02_preprocessing_and_imputation/MLproject",
         "03_feature_engineering": "src/data/03_feature_engineering/MLproject",
         "04_segregation": "src/data/04_segregation/MLproject",
+        "05_model_selection": "src/model/05_model_selection/MLproject",
     }
 
     all_exist = True
@@ -116,6 +117,7 @@ def check_main_files():
         "src/data/02_preprocessing_and_imputation/main.py",
         "src/data/03_feature_engineering/main.py",
         "src/data/04_segregation/main.py",
+        "src/model/05_model_selection/main.py",
     ]
 
     all_exist = True

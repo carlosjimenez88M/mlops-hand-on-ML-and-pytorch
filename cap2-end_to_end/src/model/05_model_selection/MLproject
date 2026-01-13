@@ -1,0 +1,50 @@
+name: model_selection
+
+entry_points:
+  main:
+    parameters:
+      train_artifact_name:
+        type: string
+        description: "Name of the training data artifact from W&B"
+
+      test_artifact_name:
+        type: string
+        description: "Name of the test data artifact from W&B"
+
+      gcs_train_path:
+        type: string
+        description: "GCS path to training data (without gs://bucket/)"
+
+      gcs_test_path:
+        type: string
+        description: "GCS path to test data (without gs://bucket/)"
+
+      bucket_name:
+        type: string
+        description: "GCS bucket name"
+
+      wandb_project:
+        type: string
+        default: "housing-mlops-gcp"
+        description: "W&B Project"
+
+      target_column:
+        type: string
+        default: "median_house_value"
+        description: "Target column name"
+
+      random_state:
+        type: float
+        default: 42
+        description: "Random state for reproducibility"
+
+    command: |
+      python main.py \
+        --train_artifact_name {train_artifact_name} \
+        --test_artifact_name {test_artifact_name} \
+        --gcs_train_path {gcs_train_path} \
+        --gcs_test_path {gcs_test_path} \
+        --bucket_name {bucket_name} \
+        --wandb_project {wandb_project} \
+        --target_column {target_column} \
+        --random_state {random_state}

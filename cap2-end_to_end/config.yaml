@@ -12,9 +12,7 @@ main:
     - "02_preprocessing_and_imputation"
     - "03_feature_engineering"
     - "04_segregation"
-    # - "05_train_model"
-    # - "06_evaluate_model"
-    # - "07_deploy_model"
+    - "05_model_selection"
 
 # Hydra configuration
 hydra:
@@ -91,6 +89,18 @@ segregation:
   test_size: 0.2
   random_state: 42
   target_column: "median_house_value"
+
+# Model Selection
+model_selection:
+  train_artifact_name: "housing_data_train:latest"
+  test_artifact_name: "housing_data_test:latest"
+  gcs_train_path: "data/04-segregated/train.csv"
+  gcs_test_path: "data/04-segregated/test.csv"
+  artifact_name: "best_model_selection"
+  artifact_type: "model"
+  artifact_description: "Best model selected from multiple algorithms"
+  target_column: "median_house_value"
+  random_state: 42
 
 # Model Training
 training:
