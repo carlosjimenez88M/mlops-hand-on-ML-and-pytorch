@@ -1,0 +1,24 @@
+# This file specifies files that are intentionally not uploaded to
+# Google Cloud. This is similar to .gitignore but for Cloud Build.
+
+.gcloudignore
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist/
+build/
+*.pytest_cache
+.coverage
+htmlcov/
+.env
+.venv
+venv/
+*.md
+tests/

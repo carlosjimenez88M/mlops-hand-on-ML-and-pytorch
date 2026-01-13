@@ -1,4 +1,4 @@
-.PHONY: help install install-uv sync run-tests test-cov run-pipeline test-config lint format clean docker-build docker-run api-local api-test api-build compose-up compose-down
+.PHONY: help install install-uv sync run-tests test-cov run-pipeline test-config lint format clean docker-build docker-run api-install api-local api-test api-test-cov api-build compose-up compose-down
 
 # Default target
 help:
@@ -25,8 +25,10 @@ help:
 	@echo "  make compose-down    - Stop docker-compose services"
 	@echo ""
 	@echo "🌐 API Commands:"
+	@echo "  make api-install     - Install API dependencies"
 	@echo "  make api-local       - Run API locally (port 8080)"
 	@echo "  make api-test        - Run API tests"
+	@echo "  make api-test-cov    - Run API tests with coverage"
 	@echo "  make api-build       - Build API Docker image"
 	@echo ""
 	@echo "🛠️  Development:"
@@ -139,12 +141,24 @@ compose-down:
 # API Commands
 # ===================================================================
 
+# Install API dependencies
+api-install:
+	@echo "Installing API dependencies..."
+	cd api && pip install -r requirements.txt
+
 # Run API locally
-api-local:
+api-local: api-install
 	@echo "Starting API locally on port 8080..."
+	@echo "API will be available at http://localhost:8080"
+	@echo "API docs at http://localhost:8080/docs"
 	cd api && uvicorn app.main:app --reload --port 8080
 
 # Test API
-api-test:
+api-test: api-install
 	@echo "Running API tests..."
 	cd api && pytest tests/ -v
+
+# Test API with coverage
+api-test-cov: api-install
+	@echo "Running API tests with coverage..."
+	cd api && pytest tests/ -v --cov=app --cov-report=html --cov-report=term-missing
