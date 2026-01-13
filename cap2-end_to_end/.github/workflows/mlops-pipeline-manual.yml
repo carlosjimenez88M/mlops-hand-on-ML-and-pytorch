@@ -1,0 +1,199 @@
+# =================================================================
+# MLOps Pipeline - Manual Execution
+# Purpose: Run complete pipeline with model training and registration
+# Execution: Manual trigger only (workflow_dispatch)
+# Author: Carlos Daniel Jiménez
+# =================================================================
+
+name: MLOps Pipeline - Training & Registration
+
+on:
+  workflow_dispatch:
+    inputs:
+      steps_to_run:
+        description: 'Pipeline steps to execute'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - data_only
+          - model_only
+          - test_only
+      optimize_hyperparams:
+        description: 'Run hyperparameter optimization in feature engineering'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  PYTHON_VERSION: "3.12"
+  WANDB_PROJECT: "housing-mlops-gcp"
+
+jobs:
+  # Job 1: Run Unit Tests
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.steps_to_run == 'all' || github.event.inputs.steps_to_run == 'test_only' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e .
+
+      - name: Run tests with coverage
+        run: |
+          uv run pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
+
+  # Job 2: Data Pipeline (Steps 1-4)
+  data-pipeline:
+    name: Data Pipeline
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: ${{ github.event.inputs.steps_to_run == 'all' || github.event.inputs.steps_to_run == 'data_only' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e .
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Configure environment
+        run: |
+          echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
+          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
+          echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
+          echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
+          echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
+
+      - name: Run data pipeline (Steps 1-4)
+        run: |
+          python main.py main.execute_steps='["01_download_data","02_preprocessing_and_imputation","03_feature_engineering","04_segregation"]' \
+                        feature_engineering.optimize_hyperparams="${{ github.event.inputs.optimize_hyperparams }}"
+
+      - name: Upload data pipeline artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-pipeline-logs
+          path: |
+            mlruns/
+            outputs/
+          retention-days: 7
+
+  # Job 3: Model Selection & Training
+  model-training:
+    name: Model Selection
+    runs-on: ubuntu-latest
+    needs: data-pipeline
+    if: ${{ github.event.inputs.steps_to_run == 'all' || github.event.inputs.steps_to_run == 'model_only' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e .
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Configure environment
+        run: |
+          echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
+          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
+          echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
+          echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
+          echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
+
+      - name: Run model selection (Step 5)
+        run: |
+          python main.py main.execute_steps='["05_model_selection"]'
+
+      - name: Upload model artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-training-logs
+          path: |
+            mlruns/
+            outputs/
+            models/
+          retention-days: 30
+
+  # Job 4: Summary Report
+  pipeline-summary:
+    name: Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [data-pipeline, model-training]
+    if: always()
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 🚀 MLOps Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** Manual execution" >> $GITHUB_STEP_SUMMARY
+          echo "**Steps:** ${{ github.event.inputs.steps_to_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Hyperparameter Optimization:** ${{ github.event.inputs.optimize_hyperparams }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Job Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit Tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Data Pipeline: ${{ needs.data-pipeline.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Model Training: ${{ needs.model-training.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 View detailed logs in [W&B](https://wandb.ai)" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Download artifacts from this run for model files" >> $GITHUB_STEP_SUMMARY
