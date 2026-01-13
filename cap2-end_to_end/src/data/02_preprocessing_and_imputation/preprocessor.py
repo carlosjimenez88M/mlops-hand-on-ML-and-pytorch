@@ -1,6 +1,6 @@
 """
 Data Preprocessor class - Downloads from GCS, processes, and uploads back
-Author: Carlos Daniel Hernandez
+Author: Carlos Daniel Jiménez
 Date: 2025-11-28
 """
 
@@ -25,11 +25,11 @@ from models import (
 from imputation_analyzer import ImputationAnalyzer
 
 # Logger configuration
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+import sys
+sys.path.insert(0, str(__file__).rsplit('/', 5)[0])
+from src.utils.colored_logger import setup_colored_logger
+
+logger = setup_colored_logger(__name__)
 
 
 class DataPreprocessor:
@@ -56,10 +56,10 @@ class DataPreprocessor:
             if not self.bucket.exists():
                 raise ValueError(f"Bucket {self.config.bucket_name} does not exist")
 
-            logger.info(f"✓ Connected to GCS: gs://{self.config.bucket_name}")
+            logger.info(f"Connected to GCS: gs://{self.config.bucket_name}")
 
         except Exception as e:
-            logger.error(f"❌ Error connecting to GCS: {e}")
+            logger.error(f"Error connecting to GCS: {e}")
             raise RuntimeError(
                 "GCS is required for this component. "
                 "Check your configuration and credentials."
@@ -90,11 +90,11 @@ class DataPreprocessor:
             content_bytes = blob.download_as_bytes()
             size_mb = len(content_bytes) / (1024 * 1024)
 
-            logger.info(f"✓ Downloaded: {size_mb:.2f} MB")
+            logger.info(f"Downloaded: {size_mb:.2f} MB")
 
             # Load into DataFrame
             df = pd.read_csv(io.BytesIO(content_bytes))
-            logger.info(f"✓ Loaded DataFrame: {len(df):,} rows, {len(df.columns)} columns")
+            logger.info(f"Loaded DataFrame: {len(df):,} rows, {len(df.columns)} columns")
 
             self.df_input = df
             return df
@@ -130,11 +130,11 @@ class DataPreprocessor:
             # Use automatic imputation method selection
             # This compares SimpleImputer (median, mean), KNNImputer, and IterativeImputer (RF)
             df_processed = self.analyze_and_select_best_imputation(df_processed)
-            logger.info(f"✓ Auto imputation completed using best method: {self.best_imputation_method}")
+            logger.info(f"Auto imputation completed using best method: {self.best_imputation_method}")
 
         elif self.config.imputation_strategy == "drop":
             df_processed = df_processed.dropna()
-            logger.info(f"✓ Dropped rows with missing values: {len(df) - len(df_processed)} rows removed")
+            logger.info(f"Dropped rows with missing values: {len(df) - len(df_processed)} rows removed")
 
         elif self.config.imputation_strategy == "median":
             # Impute numerical columns with median
@@ -143,7 +143,7 @@ class DataPreprocessor:
                 if df_processed[col].isnull().any():
                     median_value = df_processed[col].median()
                     df_processed[col].fillna(median_value, inplace=True)
-                    logger.info(f"✓ Imputed '{col}' with median: {median_value:.2f}")
+                    logger.info(f"Imputed '{col}' with median: {median_value:.2f}")
 
         elif self.config.imputation_strategy == "mean":
             # Impute numerical columns with mean
@@ -152,7 +152,7 @@ class DataPreprocessor:
                 if df_processed[col].isnull().any():
                     mean_value = df_processed[col].mean()
                     df_processed[col].fillna(mean_value, inplace=True)
-                    logger.info(f"✓ Imputed '{col}' with mean: {mean_value:.2f}")
+                    logger.info(f"Imputed '{col}' with mean: {mean_value:.2f}")
 
         elif self.config.imputation_strategy == "mode":
             # Impute all columns with mode
@@ -160,7 +160,7 @@ class DataPreprocessor:
                 if df_processed[col].isnull().any():
                     mode_value = df_processed[col].mode()[0]
                     df_processed[col].fillna(mode_value, inplace=True)
-                    logger.info(f"✓ Imputed '{col}' with mode: {mode_value}")
+                    logger.info(f"Imputed '{col}' with mode: {mode_value}")
 
         return df_processed
 
@@ -188,7 +188,7 @@ class DataPreprocessor:
                 df_processed['total_rooms'] / df_processed['households']
             )
             new_features.append('rooms_per_household')
-            logger.info("✓ Created feature: rooms_per_household")
+            logger.info("Created feature: rooms_per_household")
 
         # Feature 2: bedrooms_per_room
         if 'total_bedrooms' in df.columns and 'total_rooms' in df.columns:
@@ -196,7 +196,7 @@ class DataPreprocessor:
                 df_processed['total_bedrooms'] / df_processed['total_rooms']
             )
             new_features.append('bedrooms_per_room')
-            logger.info("✓ Created feature: bedrooms_per_room")
+            logger.info("Created feature: bedrooms_per_room")
 
         # Feature 3: population_per_household
         if 'population' in df.columns and 'households' in df.columns:
@@ -204,9 +204,9 @@ class DataPreprocessor:
                 df_processed['population'] / df_processed['households']
             )
             new_features.append('population_per_household')
-            logger.info("✓ Created feature: population_per_household")
+            logger.info("Created feature: population_per_household")
 
-        logger.info(f"✓ Created {len(new_features)} new features")
+        logger.info(f"Created {len(new_features)} new features")
         return df_processed, new_features
 
     def upload_to_gcs(self, df: pd.DataFrame) -> str:
@@ -249,7 +249,7 @@ class DataPreprocessor:
             blob.upload_from_string(csv_bytes, content_type='text/csv')
 
             gcs_uri = f"gs://{self.config.bucket_name}/{gcs_path}"
-            logger.info(f"✓ Uploaded to GCS: {gcs_uri}")
+            logger.info(f"Uploaded to GCS: {gcs_uri}")
 
             return gcs_uri
 
@@ -283,8 +283,8 @@ class DataPreprocessor:
                 for metric_name, metric_value in self.imputation_metrics.items():
                     mlflow.log_metric(metric_name, metric_value)
                 mlflow.log_param("best_imputation_method", self.best_imputation_method)
-                logger.info(f"✓ Logged {len(self.imputation_metrics)} imputation metrics to MLflow")
-                logger.info(f"✓ Best imputation method: {self.best_imputation_method}")
+                logger.info(f"Logged {len(self.imputation_metrics)} imputation metrics to MLflow")
+                logger.info(f"Best imputation method: {self.best_imputation_method}")
 
             # 4. Create engineered features
             df_processed, new_features = self.create_features(df_processed)

@@ -1,7 +1,7 @@
 # components/01_download_data/models.py
 """
 Pydantic models para validación y type safety
-Author: Carlos Daniel Hernandez
+Author: Carlos Daniel Jiménez
 Date: 2025-11-25
 """
 

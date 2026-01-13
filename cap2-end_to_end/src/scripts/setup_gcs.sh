@@ -1,6 +1,6 @@
 #!/bin/bash
 # Setup GCS structure for MLOps Pipeline - Cap2 End-to-End
-# Author: Carlos Daniel Hernandez
+# Author: Carlos Daniel Jiménez
 # Date: 2025-11-28
 
 set -e

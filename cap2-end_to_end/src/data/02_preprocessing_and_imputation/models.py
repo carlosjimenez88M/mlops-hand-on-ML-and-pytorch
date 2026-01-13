@@ -1,6 +1,6 @@
 """
 Pydantic models for preprocessing and imputation module
-Author: Carlos Daniel Hernandez
+Author: Carlos Daniel Jiménez
 Date: 2025-11-28
 """
 

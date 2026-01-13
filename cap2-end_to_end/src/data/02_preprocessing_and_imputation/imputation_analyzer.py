@@ -1,11 +1,12 @@
 """
 Imputation Analysis Module - Compares different imputation strategies
-Author: Carlos Daniel Hernandez
+Author: Carlos Daniel Jiménez
 Date: 2025-11-28
 """
 
 import io
 import logging
+import sys
 from typing import Dict, Tuple, Optional
 from dataclasses import dataclass
 
@@ -22,7 +23,10 @@ from sklearn.impute import IterativeImputer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 
-logger = logging.getLogger(__name__)
+sys.path.insert(0, str(__file__).rsplit('/', 5)[0])
+from src.utils.colored_logger import setup_colored_logger
+
+logger = setup_colored_logger(__name__)
 
 
 @dataclass
@@ -120,7 +124,7 @@ class ImputationAnalyzer:
         ax.set_title("Correlation Matrix of Numeric Features", fontsize=16, fontweight='bold')
         plt.tight_layout()
 
-        logger.info("✓ Created correlation heatmap")
+        logger.info("Created correlation heatmap")
 
         return fig
 
@@ -190,7 +194,7 @@ class ImputationAnalyzer:
 
         rmse = np.sqrt(mean_squared_error(y_val_true, y_val_pred))
 
-        logger.info(f"  ✓ RMSE: {rmse:.4f}")
+        logger.info(f"  RMSE: {rmse:.4f}")
 
         return ImputationResult(
             method_name=f"Simple Imputer ({strategy})",
@@ -243,7 +247,7 @@ class ImputationAnalyzer:
 
         rmse = np.sqrt(mean_squared_error(y_val_true, y_val_pred))
 
-        logger.info(f"  ✓ RMSE: {rmse:.4f}")
+        logger.info(f"  RMSE: {rmse:.4f}")
 
         # Store both scaler and imputer for later use
         return ImputationResult(
@@ -284,7 +288,7 @@ class ImputationAnalyzer:
 
         rmse = np.sqrt(mean_squared_error(y_val_true, y_val_pred))
 
-        logger.info(f"  ✓ RMSE: {rmse:.4f}")
+        logger.info(f"  RMSE: {rmse:.4f}")
 
         return ImputationResult(
             method_name="Iterative Imputer (RF)",
@@ -334,10 +338,10 @@ class ImputationAnalyzer:
         logger.info("IMPUTATION METHODS COMPARISON - RESULTS")
         logger.info("=" * 70)
         for key, result in sorted(self.results.items(), key=lambda x: x[1].rmse):
-            status = "🏆 BEST" if key == best_key else ""
+            status = "BEST" if key == best_key else ""
             logger.info(f"  {result.method_name:30s} RMSE: {result.rmse:8.4f} {status}")
         logger.info("=" * 70)
-        logger.info(f"✓ Best method selected: {self.results[best_key].method_name}")
+        logger.info(f"Best method selected: {self.results[best_key].method_name}")
         logger.info("=" * 70)
 
         return self.results
@@ -373,7 +377,7 @@ class ImputationAnalyzer:
         plt.xticks(rotation=45, ha='right')
         plt.tight_layout()
 
-        logger.info("✓ Created comparison plot")
+        logger.info("Created comparison plot")
 
         return fig
 
@@ -415,7 +419,7 @@ class ImputationAnalyzer:
         df_out[self.target_column] = imputed_array[:, target_col_idx]
 
         missing_after = df_out[self.target_column].isnull().sum()
-        logger.info(f"  ✓ Missing values after imputation: {missing_after}")
+        logger.info(f"  Missing values after imputation: {missing_after}")
 
         return df_out
 

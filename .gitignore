@@ -381,3 +381,6 @@ site/
 outputs/
 artifacts/
 results/
+
+claude/
+*.claude/
