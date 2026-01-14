@@ -24,7 +24,8 @@ from utils import (
     prepare_data,
     train_final_model,
     evaluate_model,
-    save_model_locally
+    save_model_locally,
+    create_feature_importance_plot
 )
 
 logging.basicConfig(
@@ -252,6 +253,14 @@ def main():
             "n_features": len(feature_columns),
             "sweep_id": sweep_id
         })
+
+        # Step 4.5: Create and log feature importance plot
+        logger.info("\n4.5. Creating feature importance visualization")
+        plot_path = create_feature_importance_plot(model, feature_columns)
+        if plot_path and plot_path.exists():
+            wandb.log({"feature_importance": wandb.Image(str(plot_path))})
+            mlflow.log_artifact(str(plot_path), artifact_path="plots")
+            logger.info("Feature importance plot logged to W&B and MLflow")
 
         # Step 5: Register model to MLflow
         logger.info("\n5. Registering model to MLflow Model Registry")

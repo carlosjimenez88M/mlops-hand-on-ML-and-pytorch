@@ -160,23 +160,57 @@ def main():
             "test_gcs_uri": result_data["result"].test_gcs_uri
         })
 
-        # Log train artifact
+        # Create and log distribution plots
+        from pathlib import Path
+        plot_path = segregator.create_distribution_plots(
+            result_data["train_data"],
+            result_data["test_data"]
+        )
+        if plot_path and plot_path.exists():
+            wandb.log({"train_test_distributions": wandb.Image(str(plot_path))})
+            logger.info("Distribution plots logged to W&B")
+
+        # Create and log statistics table
+        stats_table = segregator.create_statistics_table(
+            result_data["train_data"],
+            result_data["test_data"]
+        )
+        if stats_table:
+            wandb.log({"train_test_statistics": stats_table})
+            logger.info("Statistics table logged to W&B")
+
+        # Save local CSV files and log as artifacts
+        artifacts_dir = Path("artifacts/segregation")
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+        train_csv_path = artifacts_dir / "train_data.csv"
+        test_csv_path = artifacts_dir / "test_data.csv"
+
+        result_data["train_data"].to_csv(train_csv_path, index=False)
+        result_data["test_data"].to_csv(test_csv_path, index=False)
+        logger.info(f"Local CSV files saved to: {artifacts_dir}")
+
+        # Log train artifact (with actual CSV file)
         train_artifact = wandb.Artifact(
             name=f"{args.artifact_root}_train",
             type=args.artifact_type,
             description=args.artifact_description or "Train split of housing data"
         )
-        train_artifact.add_reference(result_data["result"].train_gcs_uri, name="train_data.csv")
+        train_artifact.add_file(str(train_csv_path), name="train_data.csv")
+        train_artifact.add_reference(result_data["result"].train_gcs_uri, name="train_data_gcs_reference")
         run.log_artifact(train_artifact)
+        logger.info("Train artifact logged to W&B")
 
-        # Log test artifact
+        # Log test artifact (with actual CSV file)
         test_artifact = wandb.Artifact(
             name=f"{args.artifact_root}_test",
             type=args.artifact_type,
             description=args.artifact_description or "Test split of housing data"
         )
-        test_artifact.add_reference(result_data["result"].test_gcs_uri, name="test_data.csv")
+        test_artifact.add_file(str(test_csv_path), name="test_data.csv")
+        test_artifact.add_reference(result_data["result"].test_gcs_uri, name="test_data_gcs_reference")
         run.log_artifact(test_artifact)
+        logger.info("Test artifact logged to W&B")
 
         logger.info("Data segregation completed successfully!")
 

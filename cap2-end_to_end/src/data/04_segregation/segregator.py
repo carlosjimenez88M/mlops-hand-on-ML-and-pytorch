@@ -9,6 +9,8 @@ import io
 import sys
 import logging
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 from typing import Optional, Tuple, Dict
 from pathlib import Path
 from sklearn.model_selection import train_test_split
@@ -148,6 +150,108 @@ class DataSegregator:
         except Exception as e:
             logger.error(f"Error during data split: {e}")
             raise
+
+    def create_distribution_plots(
+        self,
+        train_data: pd.DataFrame,
+        test_data: pd.DataFrame,
+        output_dir: Path = Path("artifacts/segregation")
+    ) -> Path:
+        """
+        Create visualization comparing train/test distributions.
+
+        Returns:
+            Path to the saved plot
+        """
+        output_dir.mkdir(parents=True, exist_ok=True)
+        plot_path = output_dir / "train_test_distributions.png"
+
+        try:
+            # Select numeric columns for visualization
+            numeric_cols = train_data.select_dtypes(include=['number']).columns.tolist()
+
+            # Limit to top 6 most important features
+            key_features = [self.config.target_column, 'median_income', 'housing_median_age',
+                          'latitude', 'longitude', 'total_rooms']
+            key_features = [col for col in key_features if col in numeric_cols][:6]
+
+            fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+            axes = axes.flatten()
+
+            for idx, col in enumerate(key_features):
+                ax = axes[idx]
+
+                # Plot distributions
+                ax.hist(train_data[col], bins=30, alpha=0.6, label='Train', color='blue', density=True)
+                ax.hist(test_data[col], bins=30, alpha=0.6, label='Test', color='orange', density=True)
+
+                ax.set_xlabel(col)
+                ax.set_ylabel('Density')
+                ax.set_title(f'Distribution: {col}')
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+
+            # Hide unused subplots
+            for idx in range(len(key_features), 6):
+                axes[idx].set_visible(False)
+
+            plt.suptitle('Train vs Test Distributions', fontsize=16, fontweight='bold')
+            plt.tight_layout()
+            plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+            plt.close()
+
+            logger.info(f"Distribution plots saved to: {plot_path}")
+            return plot_path
+
+        except Exception as e:
+            logger.warning(f"Failed to create distribution plots: {e}")
+            return None
+
+    def create_statistics_table(
+        self,
+        train_data: pd.DataFrame,
+        test_data: pd.DataFrame
+    ) -> wandb.Table:
+        """
+        Create W&B Table comparing train/test statistics.
+
+        Returns:
+            wandb.Table with comparative statistics
+        """
+        try:
+            # Get numeric columns
+            numeric_cols = train_data.select_dtypes(include=['number']).columns.tolist()
+
+            # Calculate statistics
+            stats_data = []
+            for col in numeric_cols[:10]:  # Limit to top 10 features
+                train_mean = train_data[col].mean()
+                test_mean = test_data[col].mean()
+                train_std = train_data[col].std()
+                test_std = test_data[col].std()
+
+                # Calculate percentage difference
+                mean_diff = abs((test_mean - train_mean) / train_mean * 100) if train_mean != 0 else 0
+
+                stats_data.append([
+                    col,
+                    round(train_mean, 2),
+                    round(test_mean, 2),
+                    round(mean_diff, 2),
+                    round(train_std, 2),
+                    round(test_std, 2)
+                ])
+
+            # Create W&B Table
+            columns = ["Feature", "Train Mean", "Test Mean", "Mean Diff %", "Train Std", "Test Std"]
+            table = wandb.Table(columns=columns, data=stats_data)
+
+            logger.info("Statistics table created")
+            return table
+
+        except Exception as e:
+            logger.warning(f"Failed to create statistics table: {e}")
+            return None
 
     def run(self) -> Dict[str, any]:
         """Execute complete data segregation workflow."""

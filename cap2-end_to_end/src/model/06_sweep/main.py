@@ -127,7 +127,7 @@ def main():
     parser.add_argument("--bucket_name", type=str, required=True)
     parser.add_argument("--wandb_project", type=str, required=True)
     parser.add_argument("--target_column", type=str, default="median_house_value")
-    parser.add_argument("--sweep_count", type=int, default=50)
+    parser.add_argument("--sweep_count", type=int, default=5)
     parser.add_argument("--sweep_config", type=str, default="sweep_config.yaml")
 
     args = parser.parse_args()

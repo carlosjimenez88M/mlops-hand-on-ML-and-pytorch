@@ -6,6 +6,7 @@ import logging
 import pickle
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from google.cloud import storage
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -198,3 +199,61 @@ def save_model_locally(model: RandomForestRegressor, output_path: Path) -> None:
         pickle.dump(model, f)
 
     logger.info(f" Model saved to: {output_path}")
+
+
+def create_feature_importance_plot(
+    model: RandomForestRegressor,
+    feature_names: list,
+    output_dir: Path = Path("artifacts/registration")
+) -> Path:
+    """
+    Create feature importance visualization for Random Forest model.
+
+    Args:
+        model: Trained Random Forest model
+        feature_names: List of feature names
+        output_dir: Directory to save plot
+
+    Returns:
+        Path to saved plot
+    """
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        plot_path = output_dir / "feature_importance.png"
+
+        # Get feature importances
+        importances = model.feature_importances_
+        indices = np.argsort(importances)[::-1]
+
+        # Select top 15 features
+        top_n = min(15, len(feature_names))
+        top_indices = indices[:top_n]
+        top_importances = importances[top_indices]
+        top_features = [feature_names[i] for i in top_indices]
+
+        # Create horizontal bar plot
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        y_pos = np.arange(len(top_features))
+        ax.barh(y_pos, top_importances, align='center', color='steelblue')
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(top_features)
+        ax.invert_yaxis()
+        ax.set_xlabel('Feature Importance', fontsize=12)
+        ax.set_title('Top 15 Most Important Features', fontsize=14, fontweight='bold')
+        ax.grid(axis='x', alpha=0.3)
+
+        # Add value labels on bars
+        for i, v in enumerate(top_importances):
+            ax.text(v + 0.001, i, f'{v:.4f}', va='center', fontsize=9)
+
+        plt.tight_layout()
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        plt.close()
+
+        logger.info(f"Feature importance plot saved to: {plot_path}")
+        return plot_path
+
+    except Exception as e:
+        logger.warning(f"Failed to create feature importance plot: {e}")
+        return None
