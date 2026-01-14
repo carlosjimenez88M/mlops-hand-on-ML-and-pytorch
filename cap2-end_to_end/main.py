@@ -338,6 +338,11 @@ def run_registration(config: DictConfig, root_path: Path) -> None:
 
     step_path = root_path / "src" / "model" / "07_registration"
 
+    # Convert best_params_path to absolute path
+    best_params_path = config["registration"]["best_params_path"]
+    if not Path(best_params_path).is_absolute():
+        best_params_path = str(root_path / best_params_path)
+
     mlflow.run(
         uri=str(step_path),
         entry_point="main",
@@ -346,7 +351,7 @@ def run_registration(config: DictConfig, root_path: Path) -> None:
             "bucket_name": config["gcs"]["bucket_name"],
             "gcs_train_path": config["registration"]["gcs_train_path"],
             "gcs_test_path": config["registration"]["gcs_test_path"],
-            "best_params_path": config["registration"]["best_params_path"],
+            "best_params_path": best_params_path,
             "registered_model_name": config["registration"]["registered_model_name"],
             "model_stage": config["registration"]["model_stage"],
             "target_column": config["registration"]["target_column"],
