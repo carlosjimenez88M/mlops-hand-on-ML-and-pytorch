@@ -125,10 +125,16 @@ def main():
     logger.info(f"  Test Size: {args.test_size}")
     logger.info(f"  Target Column: {args.target_column}")
 
+    # Configure W&B with explicit settings for CI/CD
+    wandb_settings = wandb.Settings(
+        console="wrap"
+    )
+
     run = wandb.init(
         project=args.wandb_project,
         job_type="data_segregation",
-        name=f"segregation_{wandb.util.generate_id()}"
+        name=f"segregation_{wandb.util.generate_id()}",
+        settings=wandb_settings
     )
 
     try:

@@ -36,6 +36,8 @@ env:
   WANDB_PROJECT: "housing-mlops-gcp"
   WANDB_CONSOLE: "wrap"
   WANDB__SERVICE_WAIT: "300"
+  WANDB_MODE: "online"
+  WANDB_SILENT: "false"
   WORKING_DIR: "cap2-end_to_end"
 
 jobs:
@@ -226,6 +228,8 @@ jobs:
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
           echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
+          echo "WANDB_MODE=online" >> $GITHUB_ENV
+          echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
@@ -286,6 +290,8 @@ jobs:
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
           echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
+          echo "WANDB_MODE=online" >> $GITHUB_ENV
+          echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
@@ -341,6 +347,8 @@ jobs:
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
           echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
+          echo "WANDB_MODE=online" >> $GITHUB_ENV
+          echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
@@ -396,6 +404,8 @@ jobs:
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
           echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
+          echo "WANDB_MODE=online" >> $GITHUB_ENV
+          echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
@@ -452,6 +462,8 @@ jobs:
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
           echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
+          echo "WANDB_MODE=online" >> $GITHUB_ENV
+          echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
@@ -507,6 +519,8 @@ jobs:
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
           echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
+          echo "WANDB_MODE=online" >> $GITHUB_ENV
+          echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
@@ -591,6 +605,8 @@ jobs:
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
           echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
           echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
+          echo "WANDB_MODE=online" >> $GITHUB_ENV
+          echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
           echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV

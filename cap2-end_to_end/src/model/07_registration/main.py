@@ -191,11 +191,16 @@ def main():
     logger.info("MODEL REGISTRATION WORKFLOW")
     logger.info("=" * 70)
 
-    # Initialize W&B
+    # Initialize W&B with explicit settings for CI/CD
+    wandb_settings = wandb.Settings(
+        console="wrap"
+    )
+
     wandb.init(
         project=args.wandb_project,
         name="model_registration",
-        job_type="registration"
+        job_type="registration",
+        settings=wandb_settings
     )
 
     # Start MLflow run
