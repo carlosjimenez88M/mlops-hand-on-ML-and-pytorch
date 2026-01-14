@@ -12,10 +12,12 @@ on:
     branches:
       - master
       - main
+      - cap2-end_to_end
   pull_request:
     branches:
       - master
       - main
+      - cap2-end_to_end
   workflow_dispatch:
     inputs:
       run_full_pipeline:
