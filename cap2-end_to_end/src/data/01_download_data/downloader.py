@@ -327,10 +327,11 @@ class DataDownloader:
         """
         try:
             # Try to load as DataFrame (content is always CSV from source)
-            df = pd.read_csv(io.BytesIO(content))
+            # TEST MODE: Only use 100 rows for quick validation
+            df = pd.read_csv(io.BytesIO(content), nrows=100)
 
             logger.info(
-                f"Data Stats: {len(df):,} rows, {len(df.columns)} columns"
+                f"Data Stats (TEST MODE - 100 rows): {len(df):,} rows, {len(df.columns)} columns"
             )
 
             return {
@@ -357,7 +358,8 @@ class DataDownloader:
         logger.info("Converting CSV to Parquet format...")
 
         # Read CSV
-        df = pd.read_csv(io.BytesIO(csv_content))
+        # TEST MODE: Only use 100 rows for quick validation
+        df = pd.read_csv(io.BytesIO(csv_content), nrows=100)
 
         # Convert to Parquet
         buffer = io.BytesIO()
