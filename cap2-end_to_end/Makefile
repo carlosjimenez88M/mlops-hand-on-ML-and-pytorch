@@ -1,4 +1,4 @@
-.PHONY: help install install-uv sync run-tests test-cov run-pipeline test-config lint format clean docker-build docker-run api-install api-local api-test api-test-cov api-build compose-up compose-down
+.PHONY: help install install-uv sync run-tests test-cov run-pipeline test-config lint format clean docker-build docker-run api-install api-local api-test api-test-cov api-build streamlit-install streamlit-local streamlit-test streamlit-build compose-up compose-down compose-logs
 
 # Default target
 help:
@@ -31,6 +31,12 @@ help:
 	@echo "  make api-test        - Run API tests"
 	@echo "  make api-test-cov    - Run API tests with coverage"
 	@echo "  make api-build       - Build API Docker image"
+	@echo ""
+	@echo "🎨 Streamlit Commands:"
+	@echo "  make streamlit-install  - Install Streamlit dependencies"
+	@echo "  make streamlit-local    - Run Streamlit locally (port 8501)"
+	@echo "  make streamlit-build    - Build Streamlit Docker image"
+	@echo "  make run-full-stack     - Run API + Streamlit locally"
 	@echo ""
 	@echo "🛠️  Development:"
 	@echo "  make lint            - Run code linters"
@@ -141,13 +147,30 @@ api-build:
 compose-up:
 	@echo "Starting services with docker-compose..."
 	docker-compose up -d
-	@echo "API available at http://localhost:8080"
-	@echo "Health check: curl http://localhost:8080/health"
+	@echo ""
+	@echo "==================================================================="
+	@echo "  Services are now running!"
+	@echo "==================================================================="
+	@echo ""
+	@echo "🌐 API:        http://localhost:8080"
+	@echo "   - Docs:     http://localhost:8080/docs"
+	@echo "   - Health:   curl http://localhost:8080/health"
+	@echo ""
+	@echo "🎨 Streamlit:  http://localhost:8501"
+	@echo ""
+	@echo "To view logs: make compose-logs"
+	@echo "To stop:      make compose-down"
+	@echo "==================================================================="
 
 # Stop docker-compose services
 compose-down:
 	@echo "Stopping docker-compose services..."
 	docker-compose down
+
+# View logs from all services
+compose-logs:
+	@echo "Showing logs from all services (Ctrl+C to exit)..."
+	docker-compose logs -f
 
 # ===================================================================
 # API Commands
@@ -174,3 +197,36 @@ api-test: api-install
 api-test-cov: api-install
 	@echo "Running API tests with coverage..."
 	cd api && pytest tests/ -v --cov=app --cov-report=html --cov-report=term-missing
+
+# ===================================================================
+# Streamlit Commands
+# ===================================================================
+
+# Install Streamlit dependencies
+streamlit-install:
+	@echo "Installing Streamlit dependencies..."
+	cd streamlit_app && pip install -r requirements.txt
+
+# Run Streamlit locally
+streamlit-local: streamlit-install
+	@echo "Starting Streamlit locally on port 8501..."
+	@echo "Streamlit will be available at http://localhost:8501"
+	@echo "Make sure the API is running at http://localhost:8080"
+	cd streamlit_app && API_URL=http://localhost:8080 streamlit run app.py --server.port 8501
+
+# Build Streamlit Docker image
+streamlit-build:
+	@echo "Building Streamlit Docker image..."
+	cd streamlit_app && docker build -t housing-streamlit:latest .
+
+# Run full stack locally (API + Streamlit in parallel)
+run-full-stack:
+	@echo "Starting full stack (API + Streamlit)..."
+	@echo "This will run both services in parallel"
+	@echo ""
+	@echo "API will be available at:       http://localhost:8080"
+	@echo "Streamlit will be available at: http://localhost:8501"
+	@echo ""
+	@echo "Press Ctrl+C to stop both services"
+	@echo ""
+	@make -j2 api-local streamlit-local

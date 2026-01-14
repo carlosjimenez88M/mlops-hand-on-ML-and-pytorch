@@ -111,7 +111,7 @@ sweep:
   gcs_train_path: "data/04-split/train/train.parquet"
   gcs_test_path: "data/04-split/test/test.parquet"
   best_model_type: "RandomForest"
-  sweep_count: 50
+  sweep_count: 60
   metric_name: "mape"
   metric_goal: "minimize"
   target_column: "median_house_value"

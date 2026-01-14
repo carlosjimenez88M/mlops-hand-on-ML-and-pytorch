@@ -1,0 +1,37 @@
+{
+  "instances": [
+    {
+      "longitude": -122.23,
+      "latitude": 37.88,
+      "housing_median_age": 41,
+      "total_rooms": 880,
+      "total_bedrooms": 129,
+      "population": 322,
+      "households": 126,
+      "median_income": 8.3252,
+      "ocean_proximity": "NEAR BAY"
+    },
+    {
+      "longitude": -118.2,
+      "latitude": 34.0,
+      "housing_median_age": 25,
+      "total_rooms": 1500,
+      "total_bedrooms": 300,
+      "population": 800,
+      "households": 280,
+      "median_income": 5.5,
+      "ocean_proximity": "<1H OCEAN"
+    },
+    {
+      "longitude": -121.0,
+      "latitude": 38.5,
+      "housing_median_age": 30,
+      "total_rooms": 2000,
+      "total_bedrooms": 400,
+      "population": 1000,
+      "households": 380,
+      "median_income": 4.2,
+      "ocean_proximity": "INLAND"
+    }
+  ]
+}

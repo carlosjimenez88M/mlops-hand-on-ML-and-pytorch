@@ -56,6 +56,38 @@ services:
           cpus: '1'
           memory: 1G
 
+  # Streamlit Frontend Service
+  streamlit:
+    build:
+      context: ./streamlit_app
+      dockerfile: Dockerfile
+    container_name: housing-streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      # API URL - Use service name for internal Docker network
+      - API_URL=http://api:8080
+    depends_on:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - mlops-network
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
 networks:
   mlops-network:
     driver: bridge

@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any, Optional
 import logging
 import os
+import pandas as pd
+
+from app.core.preprocessor import HousingPreprocessor
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,7 @@ class ModelLoader:
         self.mlflow_tracking_uri = mlflow_tracking_uri
         self._model: Optional[Any] = None
         self._model_version: str = "unknown"
+        self._preprocessor = HousingPreprocessor()
 
     def load_from_local(self, model_path: str) -> Any:
         """
@@ -250,19 +254,37 @@ class ModelLoader:
         """
         Make predictions using loaded model.
 
+        Accepts raw features and preprocesses them before prediction.
+
         Args:
-            features: Input features for prediction
+            features: Input features (DataFrame with raw features)
 
         Returns:
             Model predictions
 
         Raises:
             RuntimeError: If model is not loaded
+            ValueError: If features are invalid
         """
         if self._model is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
-        return self._model.predict(features)
+        # Convert to DataFrame if not already
+        if not isinstance(features, pd.DataFrame):
+            features = pd.DataFrame(features)
+
+        # Preprocess features
+        try:
+            features_processed = self._preprocessor.transform(features)
+            logger.debug(f"Preprocessed {len(features)} instances")
+        except Exception as e:
+            logger.error(f"Preprocessing failed: {str(e)}")
+            raise ValueError(f"Feature preprocessing failed: {str(e)}")
+
+        # Make predictions
+        predictions = self._model.predict(features_processed)
+
+        return predictions
 
     @property
     def model_version(self) -> str:
