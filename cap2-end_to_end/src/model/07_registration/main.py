@@ -203,7 +203,10 @@ def main():
         settings=wandb_settings
     )
 
-    # Start MLflow run
+    # Start MLflow run (end any existing run first)
+    if mlflow.active_run():
+        mlflow.end_run()
+
     with mlflow.start_run(run_name="model_registration"):
         # Step 1: Load best parameters from sweep
         logger.info(f"\n1. Loading best parameters from: {args.best_params_path}")
