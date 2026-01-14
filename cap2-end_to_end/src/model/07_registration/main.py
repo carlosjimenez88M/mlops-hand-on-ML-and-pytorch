@@ -208,9 +208,11 @@ def main():
     # Determine if we're running inside an MLflow project (via mlflow.run())
     # If MLFLOW_RUN_ID is set, we're already in a run context
     mlflow_run_id = os.environ.get("MLFLOW_RUN_ID")
+    is_mlflow_project = mlflow_run_id is not None
 
-    if mlflow_run_id:
-        logger.info(f"Running inside MLflow project, using existing run: {mlflow_run_id}")
+    if is_mlflow_project:
+        logger.info(f"Running inside MLflow project, skipping MLflow logging (run: {mlflow_run_id})")
+        logger.info("MLflow logging will be handled by the orchestrator")
         run_context = nullcontext()
     else:
         logger.info("Running standalone, creating new MLflow run")
@@ -220,12 +222,13 @@ def main():
         run_context = mlflow.start_run(run_name="model_registration")
 
     with run_context:
-        # Enable MLflow system metrics logging
-        try:
-            mlflow.enable_system_metrics_logging()
-            logger.info("MLflow system metrics logging enabled")
-        except Exception as e:
-            logger.warning(f"Could not enable MLflow system metrics: {e}")
+        # Enable MLflow system metrics logging (only if standalone)
+        if not is_mlflow_project:
+            try:
+                mlflow.enable_system_metrics_logging()
+                logger.info("MLflow system metrics logging enabled")
+            except Exception as e:
+                logger.warning(f"Could not enable MLflow system metrics: {e}")
 
         # Step 1: Load best parameters from sweep
         logger.info(f"\n1. Loading best parameters from: {args.best_params_path}")
@@ -267,13 +270,17 @@ def main():
         logger.info("\n4. Evaluating model on test set")
         metrics = evaluate_model(model, X_test, y_test)
 
-        # Log parameters and metrics to MLflow
-        mlflow.log_params(params)
-        mlflow.log_metrics(metrics)
-        mlflow.log_param("n_features", len(feature_columns))
-        mlflow.log_param("sweep_id", sweep_id)
+        # Log parameters and metrics to MLflow (only if standalone)
+        if not is_mlflow_project:
+            mlflow.log_params(params)
+            mlflow.log_metrics(metrics)
+            mlflow.log_param("n_features", len(feature_columns))
+            mlflow.log_param("sweep_id", sweep_id)
+            logger.info("Logged parameters and metrics to MLflow")
+        else:
+            logger.info("Skipping MLflow logging (handled by orchestrator)")
 
-        # Log to W&B
+        # Log to W&B (always)
         wandb.log({
             **params,
             **metrics,
@@ -286,22 +293,32 @@ def main():
         plot_path = create_feature_importance_plot(model, feature_columns)
         if plot_path and plot_path.exists():
             wandb.log({"feature_importance": wandb.Image(str(plot_path))})
-            mlflow.log_artifact(str(plot_path), artifact_path="plots")
-            logger.info("Feature importance plot logged to W&B and MLflow")
+            if not is_mlflow_project:
+                mlflow.log_artifact(str(plot_path), artifact_path="plots")
+                logger.info("Feature importance plot logged to W&B and MLflow")
+            else:
+                logger.info("Feature importance plot logged to W&B")
 
-        # Step 5: Register model to MLflow
-        logger.info("\n5. Registering model to MLflow Model Registry")
-        model_uri, model_version, run_id = register_model_to_mlflow(
-            model=model,
-            model_name=args.registered_model_name,
-            model_stage=args.model_stage,
-            params=params,
-            metrics=metrics,
-            feature_columns=feature_columns,
-            target_column=args.target_column,
-            gcs_train_path=args.gcs_train_path,
-            gcs_test_path=args.gcs_test_path
-        )
+        # Step 5: Register model to MLflow (only if standalone)
+        if not is_mlflow_project:
+            logger.info("\n5. Registering model to MLflow Model Registry")
+            model_uri, model_version, run_id = register_model_to_mlflow(
+                model=model,
+                model_name=args.registered_model_name,
+                model_stage=args.model_stage,
+                params=params,
+                metrics=metrics,
+                feature_columns=feature_columns,
+                target_column=args.target_column,
+                gcs_train_path=args.gcs_train_path,
+                gcs_test_path=args.gcs_test_path
+            )
+        else:
+            logger.info("\n5. Skipping MLflow model registration (handled by orchestrator)")
+            # Use placeholder values when running in MLflow project
+            model_uri = "mlflow_project_run"
+            model_version = "orchestrator_managed"
+            run_id = mlflow_run_id
 
         # Step 6: Save model locally
         logger.info("\n6. Saving model locally")
@@ -344,9 +361,12 @@ def main():
 
         logger.info(f"Model config saved to: {config_path}")
 
-        # Log config file to MLflow
-        mlflow.log_artifact(str(config_path), artifact_path="config")
-        logger.info("Config logged to MLflow")
+        # Log config file to MLflow (only if standalone)
+        if not is_mlflow_project:
+            mlflow.log_artifact(str(config_path), artifact_path="config")
+            logger.info("Config logged to MLflow")
+        else:
+            logger.info("Skipping MLflow artifact logging (handled by orchestrator)")
 
         # Create registration result
         result = RegistrationResult(
