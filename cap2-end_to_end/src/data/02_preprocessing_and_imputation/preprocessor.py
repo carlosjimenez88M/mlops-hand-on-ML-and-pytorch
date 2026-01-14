@@ -300,12 +300,20 @@ class DataPreprocessor:
 
             # 3.5. Log imputation metrics to MLflow (if auto was used)
             if self.config.imputation_strategy == "auto" and self.imputation_metrics:
-                logger.info("\nLogging imputation metrics to MLflow...")
-                for metric_name, metric_value in self.imputation_metrics.items():
-                    mlflow.log_metric(metric_name, metric_value)
-                mlflow.log_param("best_imputation_method", self.best_imputation_method)
-                logger.info(f"Logged {len(self.imputation_metrics)} imputation metrics to MLflow")
-                logger.info(f"Best imputation method: {self.best_imputation_method}")
+                try:
+                    logger.info("\nLogging imputation metrics to MLflow...")
+                    # Check if there's an active MLflow run
+                    active_run = mlflow.active_run()
+                    if active_run:
+                        for metric_name, metric_value in self.imputation_metrics.items():
+                            mlflow.log_metric(metric_name, metric_value)
+                        mlflow.log_param("best_imputation_method", self.best_imputation_method)
+                        logger.info(f"Logged {len(self.imputation_metrics)} imputation metrics to MLflow")
+                        logger.info(f"Best imputation method: {self.best_imputation_method}")
+                    else:
+                        logger.warning("No active MLflow run, skipping MLflow logging")
+                except Exception as e:
+                    logger.warning(f"Could not log to MLflow: {e}")
 
             # 4. Create engineered features
             df_processed, new_features = self.create_features(df_processed)
