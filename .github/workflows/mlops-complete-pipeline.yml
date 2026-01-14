@@ -146,12 +146,13 @@ jobs:
           echo "✓ Format check completed"
 
   # ============================================
-  # UNIT TESTS
+  # UNIT TESTS (runs in parallel, non-blocking)
   # ============================================
   unit-tests:
     name: Unit Tests & Coverage
     needs: setup
     runs-on: ubuntu-latest
+    if: always()
 
     steps:
       - name: Checkout code
@@ -161,7 +162,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install dependencies
         working-directory: ${{ env.WORKING_DIR }}
@@ -178,6 +178,7 @@ jobs:
           echo "✓ Tests completed"
 
       - name: Upload coverage
+        if: always()
         uses: codecov/codecov-action@v4
         with:
           files: ./${{ env.WORKING_DIR }}/coverage.xml
@@ -189,11 +190,11 @@ jobs:
   # ============================================
   step-01-download:
     name: Step 1 - Download Data
-    needs: [setup, unit-tests]
+    needs: [setup]
     runs-on: ubuntu-latest
     if: |
       always() &&
-      needs.unit-tests.result == 'success' &&
+      needs.setup.result == 'success' &&
       (github.event.inputs.run_full_pipeline == 'true' || github.event_name == 'push')
 
     steps:
