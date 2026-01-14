@@ -232,7 +232,6 @@ jobs:
           echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-          echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
       - name: Run Step 01 - Download Data
         working-directory: ${{ env.WORKING_DIR }}
@@ -294,7 +293,6 @@ jobs:
           echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-          echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
       - name: Run Step 02 - Preprocessing
         working-directory: ${{ env.WORKING_DIR }}
@@ -351,7 +349,6 @@ jobs:
           echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-          echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
       - name: Run Step 03 - Feature Engineering
         working-directory: ${{ env.WORKING_DIR }}
@@ -408,7 +405,6 @@ jobs:
           echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-          echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
       - name: Run Step 04 - Data Segregation
         working-directory: ${{ env.WORKING_DIR }}
@@ -466,7 +462,6 @@ jobs:
           echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-          echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
       - name: Run Step 05 - Model Selection
         working-directory: ${{ env.WORKING_DIR }}
@@ -523,7 +518,6 @@ jobs:
           echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-          echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
       - name: Run Step 06 - Hyperparameter Sweep
         working-directory: ${{ env.WORKING_DIR }}
@@ -609,7 +603,6 @@ jobs:
           echo "WANDB_SILENT=false" >> $GITHUB_ENV
           echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
           echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-          echo "GOOGLE_APPLICATION_CREDENTIALS=" >> $GITHUB_ENV
 
       - name: Run Step 07 - Model Registration
         working-directory: ${{ env.WORKING_DIR }}
