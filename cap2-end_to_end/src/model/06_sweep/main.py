@@ -212,8 +212,14 @@ def main():
             logger.info(" BEST HYPERPARAMETERS FOUND")
             logger.info("=" * 70)
             logger.info(f"Best run: {best_run.name} ({best_run.id})")
-            logger.info(f"Best MAPE: {best_run.summary.get('mape', 'N/A'):.2f}%")
-            logger.info(f"Within 10%: {best_run.summary.get('within_10pct', 'N/A'):.1f}%")
+            logger.info(f"\nPerformance Metrics:")
+            logger.info(f"  MAE: {best_run.summary.get('mae', 'N/A'):.2f}")
+            logger.info(f"  RMSE: {best_run.summary.get('rmse', 'N/A'):.2f}")
+            logger.info(f"  R²: {best_run.summary.get('r2', 'N/A'):.4f}")
+            logger.info(f"  MAPE: {best_run.summary.get('mape', 'N/A'):.2f}%")
+            logger.info(f"  SMAPE: {best_run.summary.get('smape', 'N/A'):.2f}%")
+            logger.info(f"  wMAPE: {best_run.summary.get('wmape', 'N/A'):.2f}%")
+            logger.info(f"  Within 10%: {best_run.summary.get('within_10pct', 'N/A'):.1f}%")
             logger.info(f"\nBest hyperparameters:")
             logger.info(f"  n_estimators: {best_run.config.get('n_estimators')}")
             logger.info(f"  max_depth: {best_run.config.get('max_depth')}")
@@ -246,10 +252,19 @@ def main():
                     "random_state": 42  # Fixed for reproducibility, not a hyperparameter to optimize
                 },
                 "metrics": {
-                    "mape": float(best_run.summary.get('mape', 0)),
+                    # Primary metrics
+                    "mae": float(best_run.summary.get('mae', 0)),
                     "rmse": float(best_run.summary.get('rmse', 0)),
                     "r2": float(best_run.summary.get('r2', 0)),
-                    "within_10pct": float(best_run.summary.get('within_10pct', 0))
+                    # Percentage error metrics
+                    "mape": float(best_run.summary.get('mape', 0)),
+                    "smape": float(best_run.summary.get('smape', 0)),
+                    "wmape": float(best_run.summary.get('wmape', 0)),
+                    "median_ape": float(best_run.summary.get('median_ape', 0)),
+                    # Accuracy within thresholds
+                    "within_5pct": float(best_run.summary.get('within_5pct', 0)),
+                    "within_10pct": float(best_run.summary.get('within_10pct', 0)),
+                    "within_15pct": float(best_run.summary.get('within_15pct', 0))
                 },
                 "sweep_url": f"https://wandb.ai/{os.getenv('WANDB_ENTITY', '')}/{args.wandb_project}/sweeps/{sweep_id}"
             }

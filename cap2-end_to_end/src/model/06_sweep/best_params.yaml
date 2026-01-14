@@ -9,8 +9,17 @@ hyperparameters:
   max_features: log2
   random_state: 42
 metrics:
-  mape: 20.4002
-  rmse: 53277.02271
+  # Primary metrics
+  mae: 38901.45
+  rmse: 53277.02
   r2: 0.78339
+  # Percentage error metrics
+  mape: 20.4002
+  smape: 18.85
+  wmape: 19.12
+  median_ape: 16.73
+  # Accuracy within thresholds
+  within_5pct: 12.4
   within_10pct: 36.2
+  within_15pct: 52.8
 sweep_url: https://wandb.ai/danieljimenez88m-carlosdanieljimenez-com/housing-mlops-gcp/sweeps/f73ao31m

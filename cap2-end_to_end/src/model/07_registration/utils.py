@@ -170,13 +170,16 @@ def evaluate_model(
     }
 
     logger.info("\nFinal Model Metrics:")
+    logger.info(f"  MAE: {metrics['mae']:.2f}")
+    logger.info(f"  RMSE: {metrics['rmse']:.2f}")
+    logger.info(f"  R²: {metrics['r2']:.4f}")
     logger.info(f"  MAPE: {metrics['mape']:.2f}%")
     logger.info(f"  SMAPE: {metrics['smape']:.2f}%")
     logger.info(f"  wMAPE: {metrics['wmape']:.2f}%")
     logger.info(f"  Median APE: {metrics['median_ape']:.2f}%")
+    logger.info(f"  Within 5%: {metrics['within_5pct']:.1f}%")
     logger.info(f"  Within 10%: {metrics['within_10pct']:.1f}%")
-    logger.info(f"  RMSE: {metrics['rmse']:.2f}")
-    logger.info(f"  R²: {metrics['r2']:.4f}")
+    logger.info(f"  Within 15%: {metrics['within_15pct']:.1f}%")
 
     return metrics
 

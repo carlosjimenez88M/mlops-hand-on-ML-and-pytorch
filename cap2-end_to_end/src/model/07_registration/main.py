@@ -117,11 +117,22 @@ def register_model_to_mlflow(
 - max_features: {params.get('max_features', 'sqrt')}
 
 ## Performance Metrics
-- MAPE: {metrics['mape']:.2f}%
-- Median APE: {metrics['median_ape']:.2f}%
+
+### Primary Metrics
+- **MAE**: {metrics['mae']:.2f}
+- **RMSE**: {metrics['rmse']:.2f}
+- **R²**: {metrics['r2']:.4f}
+
+### Percentage Error Metrics
+- **MAPE**: {metrics['mape']:.2f}%
+- **SMAPE**: {metrics['smape']:.2f}%
+- **wMAPE**: {metrics['wmape']:.2f}%
+- **Median APE**: {metrics['median_ape']:.2f}%
+
+### Prediction Accuracy
+- Within 5%: {metrics['within_5pct']:.1f}%
 - Within 10%: {metrics['within_10pct']:.1f}%
-- RMSE: {metrics['rmse']:.2f}
-- R²: {metrics['r2']:.4f}
+- Within 15%: {metrics['within_15pct']:.1f}%
 
 ## Features
 Number of features: {len(feature_columns)}
@@ -142,10 +153,13 @@ Target: {target_column}
     tags = {
         "algorithm": "RandomForest",
         "framework": "sklearn",
-        "mape": f"{metrics['mape']:.2f}",
-        "within_10pct": f"{metrics['within_10pct']:.1f}",
+        "mae": f"{metrics['mae']:.2f}",
         "rmse": f"{metrics['rmse']:.2f}",
         "r2": f"{metrics['r2']:.4f}",
+        "mape": f"{metrics['mape']:.2f}",
+        "smape": f"{metrics['smape']:.2f}",
+        "wmape": f"{metrics['wmape']:.2f}",
+        "within_10pct": f"{metrics['within_10pct']:.1f}",
         "n_features": str(len(feature_columns)),
         "target": target_column,
     }
