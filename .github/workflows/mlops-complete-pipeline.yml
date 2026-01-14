@@ -72,7 +72,7 @@ jobs:
             exit 1
           fi
 
-          echo "✓ Project structure validated"
+          echo "Project structure validated"
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -105,12 +105,12 @@ jobs:
           export PATH="$HOME/.cargo/bin:$PATH"
           echo "Installing dependencies..."
           uv pip install --system -e .
-          echo "✓ Dependencies installed successfully"
+          echo "Dependencies installed successfully"
 
       - name: Verify imports
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          python -c "import pandas; import numpy; import sklearn; import mlflow; import wandb; print('✓ All core packages importable')"
+          python -c "import pandas; import numpy; import sklearn; import mlflow; import wandb; print('All core packages importable')"
 
   # ============================================
   # LINTING & CODE QUALITY
@@ -140,14 +140,14 @@ jobs:
         run: |
           echo "Running Ruff linter..."
           ruff check src/ --output-format=github || true
-          echo "✓ Linting completed"
+          echo "Linting completed"
 
       - name: Check code formatting
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           echo "Checking code formatting..."
           ruff format --check src/ || true
-          echo "✓ Format check completed"
+          echo "Format check completed"
 
   # ============================================
   # UNIT TESTS (runs in parallel, non-blocking)
@@ -179,7 +179,7 @@ jobs:
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           uv run pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing || true
-          echo "✓ Tests completed"
+          echo "Tests completed"
 
       - name: Upload coverage
         if: always()
@@ -241,7 +241,7 @@ jobs:
       - name: Verify outputs
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          echo "✓ Step 1 completed successfully"
+          echo "Step 1 completed successfully"
 
       - name: Upload artifacts
         if: always()
@@ -528,7 +528,7 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           if [ -f "src/model/06_sweep/best_params.yaml" ]; then
-            echo "✓ best_params.yaml generated successfully"
+            echo "best_params.yaml generated successfully"
             cat src/model/06_sweep/best_params.yaml
           else
             echo "ERROR: best_params.yaml not found!"
@@ -585,7 +585,7 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           if [ -f "src/model/06_sweep/best_params.yaml" ]; then
-            echo "✓ best_params.yaml found"
+            echo "best_params.yaml found"
             cat src/model/06_sweep/best_params.yaml
           else
             echo "ERROR: best_params.yaml not found after download!"
@@ -613,12 +613,12 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           if [ -d "models/trained/" ]; then
-            echo "✓ Model artifacts created"
+            echo "Model artifacts created"
             ls -lah models/trained/
           fi
 
           if [ -f "configs/model_config.yaml" ]; then
-            echo "✓ Model config generated"
+            echo "Model config generated"
             cat configs/model_config.yaml
           fi
 
@@ -664,16 +664,17 @@ jobs:
         with:
           context: ./${{ env.WORKING_DIR }}/api
           push: false
+          load: true
           tags: housing-mlops-api:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Test Docker image
         run: |
-          docker run -d --name test-api -p 8000:8000 housing-mlops-api:test
+          docker run -d --name test-api -p 8080:8080 housing-mlops-api:test
           sleep 10
-          curl -f http://localhost:8000/health || exit 1
-          echo "✓ Docker image works correctly"
+          curl -f http://localhost:8080/health || exit 1
+          echo "Docker image works correctly"
           docker stop test-api
 
   # ============================================
