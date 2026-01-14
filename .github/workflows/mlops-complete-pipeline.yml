@@ -699,7 +699,7 @@ jobs:
     steps:
       - name: Generate summary
         run: |
-          echo "## 🚀 MLOps Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## MLOps Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
@@ -721,7 +721,7 @@ jobs:
           echo "| 07 - Model Registration | ${{ needs.step-07-registration.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Docker Build & Test | ${{ needs.docker-test.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Monitoring" >> $GITHUB_STEP_SUMMARY
+          echo "### Monitoring" >> $GITHUB_STEP_SUMMARY
           echo "- [Weights & Biases Dashboard](https://wandb.ai/${{ secrets.WANDB_ENTITY }}/${{ env.WANDB_PROJECT }})" >> $GITHUB_STEP_SUMMARY
           echo "- [MLflow UI](http://localhost:5555)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -732,9 +732,9 @@ jobs:
         run: |
           if [ "${{ needs.step-07-registration.result }}" == "success" ] && \
              [ "${{ needs.docker-test.result }}" == "success" ]; then
-            echo "✅ Pipeline completed successfully!"
+            echo "Pipeline completed successfully!"
             exit 0
           else
-            echo "❌ Pipeline failed or incomplete"
+            echo "Pipeline failed or incomplete"
             exit 1
           fi

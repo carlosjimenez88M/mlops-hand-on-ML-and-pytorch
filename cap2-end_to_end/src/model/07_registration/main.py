@@ -14,7 +14,9 @@ import yaml
 import mlflow
 import mlflow.sklearn
 import wandb
+import os
 from pathlib import Path
+from contextlib import nullcontext
 from mlflow.tracking import MlflowClient
 
 from config import RegistrationConfig
@@ -203,11 +205,28 @@ def main():
         settings=wandb_settings
     )
 
-    # Start MLflow run (end any existing run first)
-    if mlflow.active_run():
-        mlflow.end_run()
+    # Determine if we're running inside an MLflow project (via mlflow.run())
+    # If MLFLOW_RUN_ID is set, we're already in a run context
+    mlflow_run_id = os.environ.get("MLFLOW_RUN_ID")
 
-    with mlflow.start_run(run_name="model_registration"):
+    if mlflow_run_id:
+        logger.info(f"Running inside MLflow project, using existing run: {mlflow_run_id}")
+        run_context = nullcontext()
+    else:
+        logger.info("Running standalone, creating new MLflow run")
+        # End any existing run before starting a new one
+        if mlflow.active_run():
+            mlflow.end_run()
+        run_context = mlflow.start_run(run_name="model_registration")
+
+    with run_context:
+        # Enable MLflow system metrics logging
+        try:
+            mlflow.enable_system_metrics_logging()
+            logger.info("MLflow system metrics logging enabled")
+        except Exception as e:
+            logger.warning(f"Could not enable MLflow system metrics: {e}")
+
         # Step 1: Load best parameters from sweep
         logger.info(f"\n1. Loading best parameters from: {args.best_params_path}")
         best_params_file = Path(args.best_params_path)
