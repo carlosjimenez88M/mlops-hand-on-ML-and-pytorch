@@ -5,35 +5,31 @@ Date: 2026-01-13
 """
 
 from __future__ import annotations
-import io
-import sys
-import logging
-import pandas as pd
-import numpy as np
-import pickle
-from typing import Optional, Dict, Any
-from pathlib import Path
-from google.cloud import storage
-import wandb
 
-from config import settings
-from models import ModelSelectionConfig, ModelSelectionResult, ModelResult, ModelMetrics
+import io
+import logging
+import pickle
+import sys
+from typing import Any, Dict, Optional
+
+import pandas as pd
+from google.cloud import storage
+
+from models import ModelSelectionConfig, ModelSelectionResult
 from utils import (
+    evaluate_model,
     get_available_models,
     get_default_param_grids,
     train_model_with_gridsearch,
-    evaluate_model
 )
 
 try:
-    sys.path.insert(0, str(__file__).rsplit('/', 6)[0])
+    sys.path.insert(0, str(__file__).rsplit("/", 6)[0])
     from src.utils.colored_logger import setup_colored_logger
+
     logger = setup_colored_logger(__name__)
 except (ImportError, Exception):
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     logger = logging.getLogger(__name__)
 
 
@@ -55,8 +51,9 @@ class ModelSelector:
         """Initialize GCS client."""
         try:
             import os
-            if os.getenv('GOOGLE_APPLICATION_CREDENTIALS') == '':
-                os.environ.pop('GOOGLE_APPLICATION_CREDENTIALS', None)
+
+            if os.getenv("GOOGLE_APPLICATION_CREDENTIALS") == "":
+                os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 
             self.storage_client = storage.Client()
             self.bucket = self.storage_client.bucket(self.config.bucket_name)
@@ -69,8 +66,7 @@ class ModelSelector:
         except Exception as e:
             logger.error(f"Error connecting to GCS: {e}")
             raise RuntimeError(
-                "GCS is required for this component. "
-                "Check your configuration and credentials."
+                "GCS is required for this component. Check your configuration and credentials."
             ) from e
 
     def download_from_gcs(self, gcs_path: str) -> pd.DataFrame:
@@ -82,7 +78,7 @@ class ModelSelector:
             content = blob.download_as_bytes()
 
             # Load DataFrame (supports CSV and Parquet)
-            if gcs_path.endswith('.parquet'):
+            if gcs_path.endswith(".parquet"):
                 df = pd.read_parquet(io.BytesIO(content))
             else:
                 df = pd.read_csv(io.BytesIO(content))
@@ -104,7 +100,7 @@ class ModelSelector:
             model_buffer.seek(0)
 
             blob = self.bucket.blob(gcs_path)
-            blob.upload_from_file(model_buffer, content_type='application/octet-stream')
+            blob.upload_from_file(model_buffer, content_type="application/octet-stream")
 
             gcs_uri = f"gs://{self.config.bucket_name}/{gcs_path}"
             logger.info(f"Uploaded model to: {gcs_uri}")
@@ -116,11 +112,7 @@ class ModelSelector:
             raise
 
     def train_and_evaluate_models(
-        self,
-        X_train: pd.DataFrame,
-        X_test: pd.DataFrame,
-        y_train: pd.Series,
-        y_test: pd.Series
+        self, X_train: pd.DataFrame, X_test: pd.DataFrame, y_train: pd.Series, y_test: pd.Series
     ) -> Dict[str, Dict[str, Any]]:
         """
         Train and evaluate all models.
@@ -142,11 +134,7 @@ class ModelSelector:
 
             # Train model with 5-fold cross-validation via grid search
             best_model, best_params, training_time, cv_metrics = train_model_with_gridsearch(
-                model,
-                param_grids[model_name],
-                X_train,
-                y_train,
-                cv=5
+                model, param_grids[model_name], X_train, y_train, cv=5
             )
 
             # Evaluate model on held-out test set
@@ -158,13 +146,17 @@ class ModelSelector:
                 "best_params": best_params,
                 "metrics": metrics,
                 "cv_metrics": cv_metrics,
-                "training_time": training_time
+                "training_time": training_time,
             }
 
-            logger.info(f"  Test MAPE: {metrics['mape']:.2f}% | SMAPE: {metrics['smape']:.2f}% | "
-                       f"wMAPE: {metrics['wmape']:.2f}% | R²: {metrics['r2']:.4f}")
-            logger.info(f"  CV MAE: {cv_metrics['mean_test_score']:.2f} (±{cv_metrics['std_test_score']:.2f}) | "
-                       f"Time: {training_time:.2f}s")
+            logger.info(
+                f"  Test MAPE: {metrics['mape']:.2f}% | SMAPE: {metrics['smape']:.2f}% | "
+                f"wMAPE: {metrics['wmape']:.2f}% | R²: {metrics['r2']:.4f}"
+            )
+            logger.info(
+                f"  CV MAE: {cv_metrics['mean_test_score']:.2f} (±{cv_metrics['std_test_score']:.2f}) | "
+                f"Time: {training_time:.2f}s"
+            )
 
         return results
 
@@ -181,10 +173,7 @@ class ModelSelector:
         Returns:
             Name of best model
         """
-        best_model_name = min(
-            results.keys(),
-            key=lambda k: results[k]["metrics"]["mape"]
-        )
+        best_model_name = min(results.keys(), key=lambda k: results[k]["metrics"]["mape"])
         return best_model_name
 
     def run(self) -> Dict[str, Any]:
@@ -204,7 +193,7 @@ class ModelSelector:
             X_test = test_df.drop(columns=[self.config.target_column])
             y_test = test_df[self.config.target_column]
 
-            logger.info(f"\nData prepared:")
+            logger.info("\nData prepared:")
             logger.info(f"  Train: {X_train.shape[0]} samples, {X_train.shape[1]} features")
             logger.info(f"  Test: {X_test.shape[0]} samples, {X_test.shape[1]} features")
             logger.info(f"  Target: {self.config.target_column}\n")
@@ -234,10 +223,14 @@ class ModelSelector:
             logger.info(f"  RMSE: ${best_metrics['rmse']:,.2f}")
             logger.info(f"  MAE: ${best_metrics['mae']:,.2f}")
             logger.info("\nCross-Validation Results (5-fold):")
-            logger.info(f"  Mean CV MAE: ${best_cv_metrics['mean_test_score']:,.2f} "
-                       f"(±${best_cv_metrics['std_test_score']:,.2f})")
-            logger.info(f"  Mean CV Train MAE: ${best_cv_metrics['mean_train_score']:,.2f} "
-                       f"(±${best_cv_metrics['std_train_score']:,.2f})")
+            logger.info(
+                f"  Mean CV MAE: ${best_cv_metrics['mean_test_score']:,.2f} "
+                f"(±${best_cv_metrics['std_test_score']:,.2f})"
+            )
+            logger.info(
+                f"  Mean CV Train MAE: ${best_cv_metrics['mean_train_score']:,.2f} "
+                f"(±${best_cv_metrics['std_train_score']:,.2f})"
+            )
             logger.info("=" * 70)
 
             # Upload best model to GCS
@@ -251,7 +244,7 @@ class ModelSelector:
                     name: {
                         "metrics": res["metrics"],
                         "best_params": res["best_params"],
-                        "training_time": res["training_time"]
+                        "training_time": res["training_time"],
                     }
                     for name, res in results.items()
                 },
@@ -259,7 +252,7 @@ class ModelSelector:
                 train_samples=X_train.shape[0],
                 test_samples=X_test.shape[0],
                 num_features=X_train.shape[1],
-                target_column=self.config.target_column
+                target_column=self.config.target_column,
             )
 
             logger.info("\n" + "=" * 70)
@@ -271,7 +264,7 @@ class ModelSelector:
                 "best_model": best_model,
                 "best_model_name": best_model_name,
                 "model_gcs_uri": model_gcs_uri,
-                "all_results": results
+                "all_results": results,
             }
 
         except Exception as e:

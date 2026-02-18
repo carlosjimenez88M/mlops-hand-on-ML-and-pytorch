@@ -6,12 +6,11 @@ Date: 2025-01-13
 
 import sys
 from pathlib import Path
-from datetime import datetime
 from unittest.mock import MagicMock, Mock
 
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 from google.cloud import storage
 
 # Add src directories to path - order matters!
@@ -33,22 +32,22 @@ def sample_housing_data():
     n_samples = 100
 
     data = {
-        'longitude': np.random.uniform(-124, -114, n_samples),
-        'latitude': np.random.uniform(32, 42, n_samples),
-        'housing_median_age': np.random.randint(1, 53, n_samples),
-        'total_rooms': np.random.randint(500, 5000, n_samples),
-        'total_bedrooms': np.random.randint(100, 1000, n_samples),
-        'population': np.random.randint(500, 3000, n_samples),
-        'households': np.random.randint(100, 1000, n_samples),
-        'median_income': np.random.uniform(0.5, 15, n_samples),
-        'median_house_value': np.random.uniform(50000, 500000, n_samples)
+        "longitude": np.random.uniform(-124, -114, n_samples),
+        "latitude": np.random.uniform(32, 42, n_samples),
+        "housing_median_age": np.random.randint(1, 53, n_samples),
+        "total_rooms": np.random.randint(500, 5000, n_samples),
+        "total_bedrooms": np.random.randint(100, 1000, n_samples),
+        "population": np.random.randint(500, 3000, n_samples),
+        "households": np.random.randint(100, 1000, n_samples),
+        "median_income": np.random.uniform(0.5, 15, n_samples),
+        "median_house_value": np.random.uniform(50000, 500000, n_samples),
     }
 
     df = pd.DataFrame(data)
 
     # Add some missing values to total_bedrooms
     missing_indices = np.random.choice(n_samples, size=20, replace=False)
-    df.loc[missing_indices, 'total_bedrooms'] = np.nan
+    df.loc[missing_indices, "total_bedrooms"] = np.nan
 
     return df
 
@@ -75,11 +74,7 @@ def mock_gcs_client():
     # Configure client to return bucket
     mock_client.bucket.return_value = mock_bucket
 
-    return {
-        'client': mock_client,
-        'bucket': mock_bucket,
-        'blob': mock_blob
-    }
+    return {"client": mock_client, "bucket": mock_bucket, "blob": mock_blob}
 
 
 @pytest.fixture
@@ -87,7 +82,7 @@ def mock_requests_response():
     """Creates a mock requests response."""
     mock_response = Mock()
     mock_response.status_code = 200
-    mock_response.headers = {'content-length': '1024'}
+    mock_response.headers = {"content-length": "1024"}
     mock_response.raise_for_status = Mock()
     return mock_response
 
@@ -96,13 +91,13 @@ def mock_requests_response():
 def download_config_dict():
     """Sample configuration for DataDownloader."""
     return {
-        'file_url': 'https://example.com/housing.csv',
-        'artifact_name': 'housing_data_raw',
-        'artifact_type': 'raw_data',
-        'artifact_description': 'California housing dataset',
-        'gcs_output_path': 'data/01-raw/housing.csv',
-        'bucket_name': 'test-bucket',
-        'wandb_project': 'housing-mlops-gcp'
+        "file_url": "https://example.com/housing.csv",
+        "artifact_name": "housing_data_raw",
+        "artifact_type": "raw_data",
+        "artifact_description": "California housing dataset",
+        "gcs_output_path": "data/01-raw/housing.csv",
+        "bucket_name": "test-bucket",
+        "wandb_project": "housing-mlops-gcp",
     }
 
 
@@ -110,16 +105,16 @@ def download_config_dict():
 def preprocessing_config_dict():
     """Sample configuration for DataPreprocessor."""
     return {
-        'input_artifact_name': 'housing_data_raw:latest',
-        'gcs_input_path': 'data/01-raw/housing.csv',
-        'gcs_output_path': 'data/02-processed/housing_processed.csv',
-        'artifact_name': 'housing_data_processed',
-        'artifact_type': 'processed_data',
-        'artifact_description': 'Processed housing data',
-        'bucket_name': 'test-bucket',
-        'wandb_project': 'housing-mlops-gcp',
-        'imputation_strategy': 'median',
-        'create_features': True
+        "input_artifact_name": "housing_data_raw:latest",
+        "gcs_input_path": "data/01-raw/housing.csv",
+        "gcs_output_path": "data/02-processed/housing_processed.csv",
+        "artifact_name": "housing_data_processed",
+        "artifact_type": "processed_data",
+        "artifact_description": "Processed housing data",
+        "bucket_name": "test-bucket",
+        "wandb_project": "housing-mlops-gcp",
+        "imputation_strategy": "median",
+        "create_features": True,
     }
 
 
@@ -130,12 +125,12 @@ def mock_mlflow(monkeypatch):
     mock_log_param = Mock()
     mock_log_artifact = Mock()
 
-    monkeypatch.setattr('mlflow.log_metric', mock_log_metric)
-    monkeypatch.setattr('mlflow.log_param', mock_log_param)
-    monkeypatch.setattr('mlflow.log_artifact', mock_log_artifact)
+    monkeypatch.setattr("mlflow.log_metric", mock_log_metric)
+    monkeypatch.setattr("mlflow.log_param", mock_log_param)
+    monkeypatch.setattr("mlflow.log_artifact", mock_log_artifact)
 
     return {
-        'log_metric': mock_log_metric,
-        'log_param': mock_log_param,
-        'log_artifact': mock_log_artifact
+        "log_metric": mock_log_metric,
+        "log_param": mock_log_param,
+        "log_artifact": mock_log_artifact,
     }

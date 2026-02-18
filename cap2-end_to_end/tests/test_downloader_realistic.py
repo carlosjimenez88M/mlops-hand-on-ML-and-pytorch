@@ -22,29 +22,31 @@ What we DON'T test (and why):
 - Perfect happy paths: Those are easy and don't find bugs
 - 100% coverage: High coverage with bad tests is worse than lower coverage with good tests
 """
+
 import io
-import time
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, Mock
-import pytest
-import pandas as pd
-import requests
 
 # Import test utilities
 import sys
+import time
+from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
+import requests
+
 sys.path.insert(0, str(Path(__file__).parent / "fixtures"))
-from test_data_generator import TestDataGenerator, PerformanceTestData
+from test_data_generator import PerformanceTestData, TestDataGenerator
 
 # Import actual code - add to sys.path FIRST to avoid conflicts
 download_module_path = Path(__file__).parent.parent / "src/data/01_download_data"
 # Remove any existing src paths to avoid conflicts
-sys.path = [p for p in sys.path if 'src/data' not in p]
+sys.path = [p for p in sys.path if "src/data" not in p]
 sys.path.insert(0, str(download_module_path))
 
 # Now import - should get correct models.py
-from models import DownloadConfig
 from downloader import DataDownloader
+
+from models import DownloadConfig
 
 
 class TestDataDownloaderRealistic:
@@ -54,12 +56,12 @@ class TestDataDownloaderRealistic:
     def base_config(self):
         """Base configuration for downloader tests."""
         return {
-            'file_url': 'https://raw.githubusercontent.com/ageron/handson-ml2/master/datasets/housing/housing.tgz',
-            'artifact_name': 'housing_data_raw',
-            'artifact_type': 'raw_data',
-            'artifact_description': 'Test housing data',
-            'bucket_name': 'test-bucket',
-            'gcs_output_path': 'data/01-raw/housing.csv'
+            "file_url": "https://raw.githubusercontent.com/ageron/handson-ml2/master/datasets/housing/housing.tgz",
+            "artifact_name": "housing_data_raw",
+            "artifact_type": "raw_data",
+            "artifact_description": "Test housing data",
+            "bucket_name": "test-bucket",
+            "gcs_output_path": "data/01-raw/housing.csv",
         }
 
     @pytest.fixture
@@ -88,11 +90,7 @@ class TestDataDownloaderRealistic:
         mock_client = Mock()
         mock_client.bucket.return_value = mock_bucket
 
-        return {
-            'client': mock_client,
-            'bucket': mock_bucket,
-            'blob': mock_blob
-        }
+        return {"client": mock_client, "bucket": mock_bucket, "blob": mock_blob}
 
     # ========================================================================
     # REALISTIC EDGE CASES: Corrupted/Malformed Data
@@ -107,17 +105,17 @@ class TestDataDownloaderRealistic:
         - Pandas can handle this, but we need to verify our code does too
         - This is a REAL production failure mode, not a theoretical one
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
         # Generate corrupted CSV (some rows missing columns)
-        corrupted_csv = TestDataGenerator.generate_corrupted_csv('missing_columns')
+        corrupted_csv = TestDataGenerator.generate_corrupted_csv("missing_columns")
 
         # Mock download to return corrupted data
         mock_response = Mock()
-        mock_response.headers = {'content-length': str(len(corrupted_csv))}
+        mock_response.headers = {"content-length": str(len(corrupted_csv))}
         mock_response.raise_for_status = Mock()
         mock_response.iter_content = Mock(return_value=[corrupted_csv])
-        monkeypatch.setattr('requests.get', lambda *args, **kwargs: mock_response)
+        monkeypatch.setattr("requests.get", lambda *args, **kwargs: mock_response)
 
         config = DownloadConfig(**base_config)
         downloader = DataDownloader(config)
@@ -141,15 +139,15 @@ class TestDataDownloaderRealistic:
         - Different from pandas NaN - these are string values
         - Need to verify our code handles this gracefully
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
-        corrupted_csv = TestDataGenerator.generate_corrupted_csv('invalid_numbers')
+        corrupted_csv = TestDataGenerator.generate_corrupted_csv("invalid_numbers")
 
         mock_response = Mock()
-        mock_response.headers = {'content-length': str(len(corrupted_csv))}
+        mock_response.headers = {"content-length": str(len(corrupted_csv))}
         mock_response.raise_for_status = Mock()
         mock_response.iter_content = Mock(return_value=[corrupted_csv])
-        monkeypatch.setattr('requests.get', lambda *args, **kwargs: mock_response)
+        monkeypatch.setattr("requests.get", lambda *args, **kwargs: mock_response)
 
         config = DownloadConfig(**base_config)
         downloader = DataDownloader(config)
@@ -164,13 +162,18 @@ class TestDataDownloaderRealistic:
     # REALISTIC EDGE CASES: Different Encodings
     # ========================================================================
 
-    @pytest.mark.parametrize("encoding,add_bom", [
-        ('utf-8', False),
-        ('utf-8', True),    # UTF-8 with BOM (common in Windows Excel exports)
-        ('utf-16', False),  # UTF-16 (some databases export in this)
-        ('latin-1', False), # Latin-1 (common in European data)
-    ])
-    def test_different_encodings(self, base_config, mock_gcs_client, monkeypatch, encoding, add_bom):
+    @pytest.mark.parametrize(
+        "encoding,add_bom",
+        [
+            ("utf-8", False),
+            ("utf-8", True),  # UTF-8 with BOM (common in Windows Excel exports)
+            ("utf-16", False),  # UTF-16 (some databases export in this)
+            ("latin-1", False),  # Latin-1 (common in European data)
+        ],
+    )
+    def test_different_encodings(
+        self, base_config, mock_gcs_client, monkeypatch, encoding, add_bom
+    ):
         """
         Test: Can we handle CSVs with different encodings?
 
@@ -185,19 +188,19 @@ class TestDataDownloaderRealistic:
         - Does pandas correctly infer or can we specify encoding?
         - Does our code gracefully handle encoding issues?
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
         csv_bytes = TestDataGenerator.generate_csv_with_encoding(encoding, add_bom)
 
         mock_response = Mock()
-        mock_response.headers = {'content-length': str(len(csv_bytes))}
+        mock_response.headers = {"content-length": str(len(csv_bytes))}
         mock_response.raise_for_status = Mock()
         mock_response.iter_content = Mock(return_value=[csv_bytes])
-        monkeypatch.setattr('requests.get', lambda *args, **kwargs: mock_response)
+        monkeypatch.setattr("requests.get", lambda *args, **kwargs: mock_response)
 
         # For CSV output (not compressed)
         config_dict = base_config.copy()
-        config_dict['file_url'] = 'https://example.com/housing.csv'
+        config_dict["file_url"] = "https://example.com/housing.csv"
         config = DownloadConfig(**config_dict)
         downloader = DataDownloader(config)
 
@@ -209,18 +212,20 @@ class TestDataDownloaderRealistic:
 
         # UTF-16 without BOM is impossible to auto-detect reliably
         # This is a known limitation, not a bug
-        if encoding == 'utf-16' and not add_bom:
+        if encoding == "utf-16" and not add_bom:
             # Expected: Either fails or stats is None/incomplete
-            n_rows = getattr(result.stats, 'n_rows', None) if result.stats else None
+            n_rows = getattr(result.stats, "n_rows", None) if result.stats else None
             if result.success and n_rows and n_rows > 0:
-                print(f"\n✅ UTF-16 without BOM: Surprisingly succeeded!")
+                print("\n✅ UTF-16 without BOM: Surprisingly succeeded!")
             else:
-                print(f"\n✅ UTF-16 without BOM: Gracefully handled (expected behavior)")
+                print("\n✅ UTF-16 without BOM: Gracefully handled (expected behavior)")
         else:
             # For other encodings, expect success
             if result.success:
                 # If successful, verify data integrity
-                assert result.stats is not None, f"Stats should not be None on success for {encoding}"
+                assert result.stats is not None, (
+                    f"Stats should not be None on success for {encoding}"
+                )
                 assert result.stats.n_rows > 0, f"Should have rows for {encoding}"
                 assert result.stats.n_columns > 0, f"Should have columns for {encoding}"
             else:
@@ -248,25 +253,25 @@ class TestDataDownloaderRealistic:
 
         Note: Marked as @pytest.mark.slow to skip in quick test runs
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
         # Generate large CSV
         large_csv = TestDataGenerator.generate_large_csv(size_mb)
-        expected_time = PerformanceTestData.estimate_processing_time(size_mb, 'parse_csv')
+        expected_time = PerformanceTestData.estimate_processing_time(size_mb, "parse_csv")
 
         mock_response = Mock()
-        mock_response.headers = {'content-length': str(len(large_csv))}
+        mock_response.headers = {"content-length": str(len(large_csv))}
         mock_response.raise_for_status = Mock()
 
         # Simulate chunked response (realistic streaming)
         chunk_size = 1024 * 1024  # 1MB chunks
-        chunks = [large_csv[i:i+chunk_size] for i in range(0, len(large_csv), chunk_size)]
+        chunks = [large_csv[i : i + chunk_size] for i in range(0, len(large_csv), chunk_size)]
         mock_response.iter_content = Mock(return_value=chunks)
 
-        monkeypatch.setattr('requests.get', lambda *args, **kwargs: mock_response)
+        monkeypatch.setattr("requests.get", lambda *args, **kwargs: mock_response)
 
         config_dict = base_config.copy()
-        config_dict['file_url'] = 'https://example.com/housing.csv'
+        config_dict["file_url"] = "https://example.com/housing.csv"
         config = DownloadConfig(**config_dict)
         downloader = DataDownloader(config)
 
@@ -279,8 +284,7 @@ class TestDataDownloaderRealistic:
         assert result.success, f"Large file download failed: {result.error_message}"
         assert result.stats.file_size_mb >= size_mb * 0.9  # Allow 10% variance
         assert elapsed < expected_time, (
-            f"Performance regression: {elapsed:.2f}s > {expected_time:.2f}s "
-            f"for {size_mb}MB file"
+            f"Performance regression: {elapsed:.2f}s > {expected_time:.2f}s for {size_mb}MB file"
         )
 
         print(f"\n✅ {size_mb}MB file: {elapsed:.2f}s (max: {expected_time:.2f}s)")
@@ -289,7 +293,9 @@ class TestDataDownloaderRealistic:
     # REALISTIC EDGE CASES: Compressed Files
     # ========================================================================
 
-    def test_extract_tar_gz_with_multiple_files(self, base_config, mock_gcs_client, monkeypatch, tmp_path):
+    def test_extract_tar_gz_with_multiple_files(
+        self, base_config, mock_gcs_client, monkeypatch, tmp_path
+    ):
         """
         Test: Can we extract the correct file from tar.gz with multiple files?
 
@@ -298,28 +304,28 @@ class TestDataDownloaderRealistic:
         - We need to find the correct data file
         - This is the ACTUAL real-world scenario (housing.tgz has 1 CSV)
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
         # Generate realistic data
         housing_df = TestDataGenerator.generate_realistic_housing_data(100)
         csv_buffer = io.StringIO()
         housing_df.to_csv(csv_buffer, index=False)
-        csv_bytes = csv_buffer.getvalue().encode('utf-8')
+        csv_bytes = csv_buffer.getvalue().encode("utf-8")
 
         # Create tar.gz with multiple files (realistic scenario)
         files = {
-            'README.txt': b'This is a README file',
-            'housing.csv': csv_bytes,
-            'metadata.json': b'{"version": "1.0"}'
+            "README.txt": b"This is a README file",
+            "housing.csv": csv_bytes,
+            "metadata.json": b'{"version": "1.0"}',
         }
 
         tar_content, _ = TestDataGenerator.create_tar_gz(files)
 
         mock_response = Mock()
-        mock_response.headers = {'content-length': str(len(tar_content))}
+        mock_response.headers = {"content-length": str(len(tar_content))}
         mock_response.raise_for_status = Mock()
         mock_response.iter_content = Mock(return_value=[tar_content])
-        monkeypatch.setattr('requests.get', lambda *args, **kwargs: mock_response)
+        monkeypatch.setattr("requests.get", lambda *args, **kwargs: mock_response)
 
         config = DownloadConfig(**base_config)
         downloader = DataDownloader(config)
@@ -339,22 +345,22 @@ class TestDataDownloaderRealistic:
         - Real tar.gz might only have README, docs, etc.
         - Our code needs to fail gracefully with a clear error
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
         # Create tar.gz with only invalid files
         files = {
-            'README.txt': b'No CSV here',
-            'docs.pdf': b'PDF content',
-            'image.png': b'PNG content'
+            "README.txt": b"No CSV here",
+            "docs.pdf": b"PDF content",
+            "image.png": b"PNG content",
         }
 
         tar_content, _ = TestDataGenerator.create_tar_gz(files)
 
         mock_response = Mock()
-        mock_response.headers = {'content-length': str(len(tar_content))}
+        mock_response.headers = {"content-length": str(len(tar_content))}
         mock_response.raise_for_status = Mock()
         mock_response.iter_content = Mock(return_value=[tar_content])
-        monkeypatch.setattr('requests.get', lambda *args, **kwargs: mock_response)
+        monkeypatch.setattr("requests.get", lambda *args, **kwargs: mock_response)
 
         config = DownloadConfig(**base_config)
         downloader = DataDownloader(config)
@@ -363,7 +369,7 @@ class TestDataDownloaderRealistic:
 
         # Should fail with clear error
         assert not result.success
-        assert 'No file found with valid extensions' in result.error_message
+        assert "No file found with valid extensions" in result.error_message
 
     # ========================================================================
     # REALISTIC FAILURE MODES: Network Issues
@@ -378,13 +384,13 @@ class TestDataDownloaderRealistic:
         - Retry logic is critical for reliability
         - We verify it ACTUALLY retries and ACTUALLY succeeds on retry
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
         call_count = 0
         housing_df = TestDataGenerator.generate_realistic_housing_data(50)
         csv_buffer = io.StringIO()
         housing_df.to_csv(csv_buffer, index=False)
-        csv_bytes = csv_buffer.getvalue().encode('utf-8')
+        csv_bytes = csv_buffer.getvalue().encode("utf-8")
 
         def mock_get_with_timeout(*args, **kwargs):
             nonlocal call_count
@@ -396,15 +402,15 @@ class TestDataDownloaderRealistic:
 
             # 3rd attempt: success
             mock_response = Mock()
-            mock_response.headers = {'content-length': str(len(csv_bytes))}
+            mock_response.headers = {"content-length": str(len(csv_bytes))}
             mock_response.raise_for_status = Mock()
             mock_response.iter_content = Mock(return_value=[csv_bytes])
             return mock_response
 
-        monkeypatch.setattr('requests.get', mock_get_with_timeout)
+        monkeypatch.setattr("requests.get", mock_get_with_timeout)
 
         config_dict = base_config.copy()
-        config_dict['file_url'] = 'https://example.com/housing.csv'
+        config_dict["file_url"] = "https://example.com/housing.csv"
         config = DownloadConfig(**config_dict)
         downloader = DataDownloader(config)
 
@@ -423,15 +429,15 @@ class TestDataDownloaderRealistic:
         - Can't retry forever
         - Need to fail fast with clear error
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
         def mock_get_always_fails(*args, **kwargs):
             raise requests.ConnectionError("Unable to connect to server")
 
-        monkeypatch.setattr('requests.get', mock_get_always_fails)
+        monkeypatch.setattr("requests.get", mock_get_always_fails)
 
         config_dict = base_config.copy()
-        config_dict['file_url'] = 'https://example.com/housing.csv'
+        config_dict["file_url"] = "https://example.com/housing.csv"
         config = DownloadConfig(**config_dict)
         downloader = DataDownloader(config)
 
@@ -439,7 +445,7 @@ class TestDataDownloaderRealistic:
 
         # Should fail after retries
         assert not result.success
-        assert 'Unable to connect' in result.error_message
+        assert "Unable to connect" in result.error_message
 
     def test_http_404_no_retry(self, base_config, mock_gcs_client, monkeypatch):
         """
@@ -450,7 +456,7 @@ class TestDataDownloaderRealistic:
         - Retrying won't help - fail fast
         - Different from network timeouts (should retry)
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
         def mock_get_404(*args, **kwargs):
             mock_response = Mock()
@@ -458,10 +464,10 @@ class TestDataDownloaderRealistic:
             mock_response.raise_for_status.side_effect = requests.HTTPError("404 Not Found")
             return mock_response
 
-        monkeypatch.setattr('requests.get', mock_get_404)
+        monkeypatch.setattr("requests.get", mock_get_404)
 
         config_dict = base_config.copy()
-        config_dict['file_url'] = 'https://example.com/nonexistent.csv'
+        config_dict["file_url"] = "https://example.com/nonexistent.csv"
         config = DownloadConfig(**config_dict)
         downloader = DataDownloader(config)
 
@@ -469,7 +475,7 @@ class TestDataDownloaderRealistic:
 
         # Should fail immediately (no retries for 404)
         assert not result.success
-        assert '404' in result.error_message
+        assert "404" in result.error_message
 
     # ========================================================================
     # PERFORMANCE TESTS: Measurable Expectations
@@ -484,24 +490,24 @@ class TestDataDownloaderRealistic:
         - If this is slow, there's a performance bug
         - This catches O(n²) bugs that coverage won't find
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
         size_mb = 1
         housing_df = TestDataGenerator.generate_realistic_housing_data(1000)  # ~1MB
         csv_buffer = io.StringIO()
         housing_df.to_csv(csv_buffer, index=False)
-        csv_bytes = csv_buffer.getvalue().encode('utf-8')
+        csv_bytes = csv_buffer.getvalue().encode("utf-8")
 
-        expected_time = PerformanceTestData.estimate_processing_time(size_mb, 'parse_csv')
+        expected_time = PerformanceTestData.estimate_processing_time(size_mb, "parse_csv")
 
         mock_response = Mock()
-        mock_response.headers = {'content-length': str(len(csv_bytes))}
+        mock_response.headers = {"content-length": str(len(csv_bytes))}
         mock_response.raise_for_status = Mock()
         mock_response.iter_content = Mock(return_value=[csv_bytes])
-        monkeypatch.setattr('requests.get', lambda *args, **kwargs: mock_response)
+        monkeypatch.setattr("requests.get", lambda *args, **kwargs: mock_response)
 
         config_dict = base_config.copy()
-        config_dict['file_url'] = 'https://example.com/housing.csv'
+        config_dict["file_url"] = "https://example.com/housing.csv"
         config = DownloadConfig(**config_dict)
         downloader = DataDownloader(config)
 
@@ -511,8 +517,7 @@ class TestDataDownloaderRealistic:
 
         assert result.success
         assert elapsed < expected_time, (
-            f"Performance regression: {elapsed:.2f}s > {expected_time:.2f}s "
-            f"for {size_mb}MB file"
+            f"Performance regression: {elapsed:.2f}s > {expected_time:.2f}s for {size_mb}MB file"
         )
 
         print(f"\n✅ {size_mb}MB file: {elapsed:.2f}s (max: {expected_time:.2f}s)")
@@ -545,7 +550,7 @@ class TestDataDownloaderRealistic:
 
         Run with: pytest -v --run-integration
         """
-        monkeypatch.setattr('downloader.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("downloader.storage.Client", lambda: mock_gcs_client["client"])
 
         # Use REAL URL from configuration
         config = DownloadConfig(**base_config)
@@ -562,16 +567,16 @@ class TestDataDownloaderRealistic:
         assert result.stats.n_columns == 10
 
         # Verify expected columns are present
-        expected_cols = {'longitude', 'latitude', 'housing_median_age', 'median_house_value'}
+        expected_cols = {"longitude", "latitude", "housing_median_age", "median_house_value"}
         assert expected_cols.issubset(set(result.stats.columns or []))
 
-        print(f"\n✅ Real download: {result.stats.n_rows} rows, "
-              f"{result.stats.file_size_mb:.2f}MB")
+        print(f"\n✅ Real download: {result.stats.n_rows} rows, {result.stats.file_size_mb:.2f}MB")
 
 
 # ============================================================================
 # Pytest Configuration
 # ============================================================================
+
 
 def pytest_addoption(parser):
     """Add custom command line options."""
@@ -579,14 +584,18 @@ def pytest_addoption(parser):
         "--run-integration",
         action="store_true",
         default=False,
-        help="Run integration tests (requires network)"
+        help="Run integration tests (requires network)",
     )
 
 
 def pytest_configure(config):
     """Register custom markers."""
-    config.addinivalue_line("markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')")
-    config.addinivalue_line("markers", "integration: marks tests as integration tests (requires network)")
+    config.addinivalue_line(
+        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+    )
+    config.addinivalue_line(
+        "markers", "integration: marks tests as integration tests (requires network)"
+    )
 
 
 # ============================================================================

@@ -1,0 +1,130 @@
+name: MLOps Drift Monitoring
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      reference_path:
+        description: "Reference dataset path in GCS"
+        required: true
+        type: string
+        default: "data/04-split/train/train.parquet"
+      current_path:
+        description: "Current dataset path in GCS (inference batch or latest scored data)"
+        required: true
+        type: string
+        default: "data/04-split/test/test.parquet"
+      max_psi:
+        description: "PSI threshold for drift detection"
+        required: true
+        type: string
+        default: "0.2"
+      fail_on_drift:
+        description: "Fail workflow when drift is detected"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  WORKING_DIR: "cap2-end_to_end"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  monitor-drift:
+    name: Drift Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: uv sync --frozen
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Validate required secrets
+        run: |
+          test -n "${{ secrets.GCS_BUCKET_NAME }}" || (echo "Missing secret: GCS_BUCKET_NAME" && exit 1)
+
+      - name: Run drift monitor
+        working-directory: ${{ env.WORKING_DIR }}
+        env:
+          GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+        run: |
+          REFERENCE_PATH="${{ github.event.inputs.reference_path }}"
+          CURRENT_PATH="${{ github.event.inputs.current_path }}"
+          MAX_PSI="${{ github.event.inputs.max_psi }}"
+          FAIL_ON_DRIFT="${{ github.event.inputs.fail_on_drift }}"
+
+          if [ -z "$REFERENCE_PATH" ]; then REFERENCE_PATH="data/04-split/train/train.parquet"; fi
+          if [ -z "$CURRENT_PATH" ]; then CURRENT_PATH="data/04-split/test/test.parquet"; fi
+          if [ -z "$MAX_PSI" ]; then MAX_PSI="0.2"; fi
+          if [ -z "$FAIL_ON_DRIFT" ]; then FAIL_ON_DRIFT="true"; fi
+
+          DRIFT_FLAG="--no-fail-on-drift"
+          if [ "$FAIL_ON_DRIFT" = "true" ]; then
+            DRIFT_FLAG="--fail-on-drift"
+          fi
+
+          uv run python scripts/monitor_drift.py \
+            --bucket-name "$GCS_BUCKET_NAME" \
+            --reference-path "$REFERENCE_PATH" \
+            --current-path "$CURRENT_PATH" \
+            --target-column median_house_value \
+            --max-psi "$MAX_PSI" \
+            --report-path artifacts/monitoring/drift_report.json \
+            $DRIFT_FLAG
+
+      - name: Upload drift report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: drift-monitoring-report
+          path: ${{ env.WORKING_DIR }}/artifacts/monitoring/drift_report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish summary
+        if: always()
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          uv run python - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json
+          from pathlib import Path
+
+          report_path = Path("artifacts/monitoring/drift_report.json")
+          if not report_path.exists():
+              print("## Drift Monitoring\n\nNo report generated.")
+              raise SystemExit(0)
+
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          print("## Drift Monitoring")
+          print("")
+          print(f"- Drift detected: **{report.get('drift_detected')}**")
+          print(f"- Drifted features: **{report.get('drifted_feature_count')}**")
+          print(f"- Threshold (PSI): **{report.get('max_psi_threshold')}**")
+          print("")
+          print("### Top PSI Features")
+          for feature, psi in report.get("top_features_by_psi", []):
+              print(f"- {feature}: {psi:.6f}")
+          PY

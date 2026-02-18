@@ -1,5 +1,23 @@
 model:
-  best_model: RandomForest
+  name: housing_price_model
+  version: '1'
+  stage: Staging
+  best_model: GradientBoosting
+  parameters:
+    learning_rate: 0.07009925729923229
+    min_samples_split: 17
+    subsample: 0.8182379694901705
+    n_estimators: 418
+    max_features: null
+    max_depth: 8
+    min_samples_leaf: 2
+    random_state: 42
+  r2_score: 0.8449426367335227
+  mae: 29325.176069463007
+  rmse: 45076.44184790461
+  mape: 16.54733293504644
+  target_variable: median_house_value
+  num_features: 14
   feature_columns:
   - longitude
   - latitude
@@ -9,25 +27,14 @@ model:
   - population
   - households
   - median_income
+  - ocean_proximity_<1H OCEAN
+  - ocean_proximity_INLAND
+  - ocean_proximity_ISLAND
   - ocean_proximity_NEAR BAY
+  - ocean_proximity_NEAR OCEAN
   - cluster_label
+  mlflow_run_id: c843b994ab264991acd9277a61135dbf
+  mlflow_model_uri: runs:/c843b994ab264991acd9277a61135dbf/model
+  gcs_model_uri: gs://mlops-practices-wb-cap2-end_to_end/models/07-registration/housing_price_model.pkl
   local_path: models/trained/housing_price_model.pkl
-  mae: 42884.55161103307
-  mape: 23.961431911283096
-  mlflow_model_uri: runs:/4c5f3f2d72654883bbd769cad318ba3c/model
-  mlflow_run_id: 4c5f3f2d72654883bbd769cad318ba3c
-  name: housing_price_model
-  num_features: 10
-  parameters:
-    max_depth: 23
-    max_features: log2
-    min_samples_leaf: 9
-    min_samples_split: 9
-    n_estimators: 128
-    random_state: 42
-  r2_score: 0.37576587326740685
-  rmse: 72643.12203666329
-  stage: Staging
-  sweep_id: f73ao31m
-  target_variable: median_house_value
-  version: '10'
+  sweep_id: aadnfqki

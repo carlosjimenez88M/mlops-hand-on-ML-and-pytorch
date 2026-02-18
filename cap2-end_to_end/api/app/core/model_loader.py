@@ -1,11 +1,12 @@
 """
 Model loader for loading trained models from MLflow, GCS or local filesystem.
 """
+
+import logging
 import pickle
 from pathlib import Path
 from typing import Any, Optional
-import logging
-import os
+
 import pandas as pd
 
 from app.core.preprocessor import HousingPreprocessor
@@ -23,7 +24,7 @@ class ModelLoader:
         gcs_model_path: Optional[str] = None,
         mlflow_model_name: Optional[str] = None,
         mlflow_model_stage: Optional[str] = None,
-        mlflow_tracking_uri: Optional[str] = None
+        mlflow_tracking_uri: Optional[str] = None,
     ):
         """
         Initialize model loader.
@@ -68,7 +69,7 @@ class ModelLoader:
         logger.info(f"Loading model from local path: {model_path}")
 
         try:
-            with open(model_file, 'rb') as f:
+            with open(model_file, "rb") as f:
                 model = pickle.load(f)
 
             self._model_version = model_file.stem
@@ -123,10 +124,7 @@ class ModelLoader:
             raise Exception(f"GCS model loading failed: {str(e)}")
 
     def load_from_mlflow(
-        self,
-        model_name: str,
-        stage: Optional[str] = None,
-        tracking_uri: Optional[str] = None
+        self, model_name: str, stage: Optional[str] = None, tracking_uri: Optional[str] = None
     ) -> Any:
         """
         Load model from MLflow Model Registry.
@@ -146,10 +144,10 @@ class ModelLoader:
         try:
             import mlflow
             import mlflow.pyfunc
+            from mlflow.exceptions import MlflowException
         except ImportError:
             raise ImportError(
-                "mlflow is required for MLflow model loading. "
-                "Install with: pip install mlflow"
+                "mlflow is required for MLflow model loading. Install with: pip install mlflow"
             )
 
         # Set tracking URI if provided
@@ -162,27 +160,55 @@ class ModelLoader:
         try:
             # Build model URI
             if stage:
-                model_uri = f"models:/{model_name}/{stage}"
-                logger.info(f"Loading model from MLflow: {model_uri}")
-            else:
-                # Get latest version
+                alias = stage.strip().lower().replace(" ", "_")
                 from mlflow.tracking import MlflowClient
-                client = MlflowClient()
-                latest_versions = client.get_latest_versions(model_name, stages=["Staging", "Production"])
 
-                if not latest_versions:
-                    # Try to get any version
+                client = MlflowClient()
+                try:
+                    client.get_model_version_by_alias(name=model_name, alias=alias)
+                    model_uri = f"models:/{model_name}@{alias}"
+                    logger.info(f"Loading model from MLflow alias: {model_uri}")
+                except MlflowException:
+                    model_uri = f"models:/{model_name}/{stage}"
+                    logger.info(
+                        "Alias '%s' not found for model '%s', falling back to legacy stage URI: %s",
+                        alias,
+                        model_name,
+                        model_uri,
+                    )
+            else:
+                # Prefer canonical aliases, then fallback to latest version number.
+                from mlflow.tracking import MlflowClient
+
+                client = MlflowClient()
+                alias_version = None
+                alias_used = None
+
+                for candidate_alias in ("production", "staging"):
+                    try:
+                        alias_version = client.get_model_version_by_alias(
+                            name=model_name,
+                            alias=candidate_alias,
+                        )
+                        alias_used = candidate_alias
+                        break
+                    except MlflowException:
+                        continue
+
+                if alias_version is not None:
+                    model_uri = f"models:/{model_name}/{alias_version.version}"
+                    logger.info(
+                        "Loading model from MLflow alias '%s': %s",
+                        alias_used,
+                        model_uri,
+                    )
+                else:
                     all_versions = client.search_model_versions(f"name='{model_name}'")
                     if not all_versions:
                         raise Exception(f"No versions found for model: {model_name}")
-                    latest_version = max(all_versions, key=lambda v: int(v.version))
-                else:
-                    # Prefer Production over Staging
-                    production_versions = [v for v in latest_versions if v.current_stage == "Production"]
-                    latest_version = production_versions[0] if production_versions else latest_versions[0]
-
-                model_uri = f"models:/{model_name}/{latest_version.version}"
-                logger.info(f"Loading model from MLflow: {model_uri} (stage: {latest_version.current_stage})")
+                    latest_version = max(all_versions, key=lambda version: int(version.version))
+                    model_uri = f"models:/{model_name}/{latest_version.version}"
+                    logger.info("Loading latest MLflow model version: %s", model_uri)
 
             # Load model
             model = mlflow.sklearn.load_model(model_uri)
@@ -217,9 +243,7 @@ class ModelLoader:
         if self.mlflow_model_name:
             try:
                 self._model = self.load_from_mlflow(
-                    self.mlflow_model_name,
-                    self.mlflow_model_stage,
-                    self.mlflow_tracking_uri
+                    self.mlflow_model_name, self.mlflow_model_stage, self.mlflow_tracking_uri
                 )
                 return self._model
             except Exception as e:
@@ -228,10 +252,7 @@ class ModelLoader:
         # Try GCS if configured
         if self.gcs_bucket and self.gcs_model_path:
             try:
-                self._model = self.load_from_gcs(
-                    self.gcs_bucket,
-                    self.gcs_model_path
-                )
+                self._model = self.load_from_gcs(self.gcs_bucket, self.gcs_model_path)
                 return self._model
             except Exception as e:
                 logger.warning(f"GCS loading failed, trying local: {str(e)}")

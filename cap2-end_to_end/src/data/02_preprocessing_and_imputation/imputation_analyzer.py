@@ -4,41 +4,39 @@ Author: Carlos Daniel Jiménez
 Date: 2025-11-28
 """
 
-import io
 import logging
 import sys
-from typing import Dict, Tuple, Optional
 from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.figure import Figure
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
-from sklearn.impute import SimpleImputer, KNNImputer
-from sklearn.experimental import enable_iterative_imputer  # noqa: F401
-from sklearn.impute import IterativeImputer
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+from sklearn.impute import IterativeImputer, KNNImputer, SimpleImputer
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 try:
-    sys.path.insert(0, str(__file__).rsplit('/', 5)[0])
+    sys.path.insert(0, str(__file__).rsplit("/", 5)[0])
     from src.utils.colored_logger import setup_colored_logger
+
     logger = setup_colored_logger(__name__)
 except (ImportError, Exception):
     import logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     logger = logging.getLogger(__name__)
 
 
 @dataclass
 class ImputationResult:
     """Result of an imputation strategy evaluation."""
+
     method_name: str
     rmse: float
     imputed_values: np.ndarray
@@ -56,7 +54,7 @@ class ImputationAnalyzer:
         df: pd.DataFrame,
         target_column: str = "total_bedrooms",
         test_size: float = 0.2,
-        random_state: int = 42
+        random_state: int = 42,
     ):
         """
         Initialize the analyzer.
@@ -86,9 +84,9 @@ class ImputationAnalyzer:
         missing_pct = (missing_count / len(self.df)) * 100
 
         stats = {
-            'missing_count': missing_count,
-            'missing_percentage': missing_pct,
-            'total_rows': len(self.df)
+            "missing_count": missing_count,
+            "missing_percentage": missing_pct,
+            "total_rows": len(self.df),
         }
 
         logger.info("=" * 70)
@@ -127,8 +125,10 @@ class ImputationAnalyzer:
             Matplotlib figure
         """
         fig, ax = plt.subplots(figsize=(12, 10))
-        sns.heatmap(corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", ax=ax, cbar_kws={'shrink': 0.8})
-        ax.set_title("Correlation Matrix of Numeric Features", fontsize=16, fontweight='bold')
+        sns.heatmap(
+            corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", ax=ax, cbar_kws={"shrink": 0.8}
+        )
+        ax.set_title("Correlation Matrix of Numeric Features", fontsize=16, fontweight="bold")
         plt.tight_layout()
 
         logger.info("Created correlation heatmap")
@@ -152,9 +152,7 @@ class ImputationAnalyzer:
 
         # Split into train and validation
         train_set, val_set = train_test_split(
-            housing_known,
-            test_size=self.test_size,
-            random_state=self.random_state
+            housing_known, test_size=self.test_size, random_state=self.random_state
         )
 
         # Create validation set with masked target column
@@ -175,7 +173,7 @@ class ImputationAnalyzer:
         train_set: pd.DataFrame,
         val_set_missing: pd.DataFrame,
         y_val_true: pd.Series,
-        strategy: str = "median"
+        strategy: str = "median",
     ) -> ImputationResult:
         """
         Evaluates Simple Imputer strategy.
@@ -207,7 +205,7 @@ class ImputationAnalyzer:
             method_name=f"Simple Imputer ({strategy})",
             rmse=rmse,
             imputed_values=y_val_pred,
-            imputer=imputer
+            imputer=imputer,
         )
 
     def evaluate_knn_imputer(
@@ -215,7 +213,7 @@ class ImputationAnalyzer:
         train_set: pd.DataFrame,
         val_set_missing: pd.DataFrame,
         y_val_true: pd.Series,
-        n_neighbors: int = 5
+        n_neighbors: int = 5,
     ) -> ImputationResult:
         """
         Evaluates KNN Imputer strategy with StandardScaler.
@@ -233,8 +231,9 @@ class ImputationAnalyzer:
 
         # Suppress RuntimeWarnings from KNN calculations (expected with unscaled data)
         import warnings
+
         with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=RuntimeWarning)
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
 
             # Scale data before KNN to avoid overflow issues
             scaler = StandardScaler()
@@ -261,14 +260,11 @@ class ImputationAnalyzer:
             method_name=f"KNN Imputer (k={n_neighbors})",
             rmse=rmse,
             imputed_values=y_val_pred,
-            imputer=(scaler, imputer)  # Store tuple of (scaler, imputer)
+            imputer=(scaler, imputer),  # Store tuple of (scaler, imputer)
         )
 
     def evaluate_iterative_imputer(
-        self,
-        train_set: pd.DataFrame,
-        val_set_missing: pd.DataFrame,
-        y_val_true: pd.Series
+        self, train_set: pd.DataFrame, val_set_missing: pd.DataFrame, y_val_true: pd.Series
     ) -> ImputationResult:
         """
         Evaluates Iterative Imputer with Random Forest.
@@ -301,7 +297,7 @@ class ImputationAnalyzer:
             method_name="Iterative Imputer (RF)",
             rmse=rmse,
             imputed_values=y_val_pred,
-            imputer=imputer
+            imputer=imputer,
         )
 
     def compare_all_methods(self) -> Dict[str, ImputationResult]:
@@ -319,19 +315,19 @@ class ImputationAnalyzer:
         train_set, val_set_missing, y_val_true = self.prepare_validation_set()
 
         # Evaluate all methods
-        self.results['simple_median'] = self.evaluate_simple_imputer(
+        self.results["simple_median"] = self.evaluate_simple_imputer(
             train_set, val_set_missing, y_val_true, strategy="median"
         )
 
-        self.results['simple_mean'] = self.evaluate_simple_imputer(
+        self.results["simple_mean"] = self.evaluate_simple_imputer(
             train_set, val_set_missing, y_val_true, strategy="mean"
         )
 
-        self.results['knn'] = self.evaluate_knn_imputer(
+        self.results["knn"] = self.evaluate_knn_imputer(
             train_set, val_set_missing, y_val_true, n_neighbors=5
         )
 
-        self.results['iterative_rf'] = self.evaluate_iterative_imputer(
+        self.results["iterative_rf"] = self.evaluate_iterative_imputer(
             train_set, val_set_missing, y_val_true
         )
 
@@ -367,21 +363,30 @@ class ImputationAnalyzer:
         rmses = [result.rmse for result in self.results.values()]
 
         fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.bar(methods, rmses, color=['green' if i == np.argmin(rmses) else 'skyblue' for i in range(len(rmses))])
+        bars = ax.bar(
+            methods,
+            rmses,
+            color=["green" if i == np.argmin(rmses) else "skyblue" for i in range(len(rmses))],
+        )
 
-        ax.set_xlabel('Imputation Method', fontsize=12, fontweight='bold')
-        ax.set_ylabel('RMSE', fontsize=12, fontweight='bold')
-        ax.set_title('Comparison of Imputation Methods', fontsize=14, fontweight='bold')
-        ax.grid(axis='y', alpha=0.3)
+        ax.set_xlabel("Imputation Method", fontsize=12, fontweight="bold")
+        ax.set_ylabel("RMSE", fontsize=12, fontweight="bold")
+        ax.set_title("Comparison of Imputation Methods", fontsize=14, fontweight="bold")
+        ax.grid(axis="y", alpha=0.3)
 
         # Add value labels on bars
         for bar, rmse in zip(bars, rmses):
             height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height,
-                   f'{rmse:.4f}',
-                   ha='center', va='bottom', fontsize=10)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height,
+                f"{rmse:.4f}",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+            )
 
-        plt.xticks(rotation=45, ha='right')
+        plt.xticks(rotation=45, ha="right")
         plt.tight_layout()
 
         logger.info("Created comparison plot")
@@ -401,15 +406,16 @@ class ImputationAnalyzer:
         if self.best_imputer is None:
             raise ValueError("No best imputer selected. Run compare_all_methods() first.")
 
-        logger.info(f"\nApplying best imputer to full dataset...")
+        logger.info("\nApplying best imputer to full dataset...")
 
         df_out = df.copy()
         numeric_df = df_out.select_dtypes(include=[np.number])
 
         # Suppress RuntimeWarnings from KNN if applicable
         import warnings
+
         with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=RuntimeWarning)
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
 
             # Check if imputer is a tuple (scaler, imputer) for KNN
             if isinstance(self.best_imputer, tuple):
@@ -437,7 +443,4 @@ class ImputationAnalyzer:
         Returns:
             Dictionary with method names and RMSE values
         """
-        return {
-            f"imputation_rmse_{key}": result.rmse
-            for key, result in self.results.items()
-        }
+        return {f"imputation_rmse_{key}": result.rmse for key, result in self.results.items()}

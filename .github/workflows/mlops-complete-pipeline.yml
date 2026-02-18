@@ -1,741 +1,363 @@
-# =================================================================
-# Complete MLOps CI/CD Pipeline
-# Purpose: End-to-end training and deployment workflow
-# Execution: Push to master/main or manual trigger
-# Author: Carlos Daniel Jiménez
-# =================================================================
-
 name: MLOps CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - master
-      - main
-      - cap2-end_to_end
   pull_request:
-    branches:
-      - master
-      - main
-      - cap2-end_to_end
+    branches: [main, master, cap2-end_to_end]
+    paths:
+      - "cap2-end_to_end/**"
+      - ".github/workflows/mlops-complete-pipeline.yml"
+      - ".github/workflows/mlops-model-monitoring.yml"
+  push:
+    branches: [main, master, cap2-end_to_end]
+    paths:
+      - "cap2-end_to_end/**"
+      - ".github/workflows/mlops-complete-pipeline.yml"
+      - ".github/workflows/mlops-model-monitoring.yml"
   workflow_dispatch:
     inputs:
-      run_full_pipeline:
-        description: 'Run complete 7-step pipeline'
+      run_training_pipeline:
+        description: "Run full 7-step pipeline in GCP/W&B"
         required: true
-        default: true
         type: boolean
+        default: false
       sweep_count:
-        description: 'Number of sweep runs'
+        description: "W&B Bayesian sweep runs (step 06)"
         required: true
-        default: '5'
         type: string
+        default: "20"
+      promote_to_production:
+        description: "Promote latest Staging model to Production after registration"
+        required: true
+        type: boolean
+        default: false
+      min_r2:
+        description: "Promotion guardrail: minimum r2 tag"
+        required: true
+        type: string
+        default: "0.40"
+      max_mape:
+        description: "Promotion guardrail: maximum mape tag"
+        required: true
+        type: string
+        default: "30.0"
+
+permissions:
+  contents: read
+  id-token: write
 
 env:
+  WORKING_DIR: "cap2-end_to_end"
   PYTHON_VERSION: "3.12"
   WANDB_PROJECT: "housing-mlops-gcp"
-  WANDB_CONSOLE: "wrap"
-  WANDB__SERVICE_WAIT: "300"
-  WANDB_MODE: "online"
-  WANDB_SILENT: "false"
-  WORKING_DIR: "cap2-end_to_end"
+
+concurrency:
+  group: mlops-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # ============================================
-  # SETUP: Validate repository structure
-  # ============================================
-  setup:
-    name: Setup and Validate
+  quality-gate:
+    name: Quality Gate
     runs-on: ubuntu-latest
-    outputs:
-      python-version: ${{ env.PYTHON_VERSION }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Validate project structure
-        run: |
-          echo "Validating project structure..."
-          if [ ! -d "${{ env.WORKING_DIR }}" ]; then
-            echo "ERROR: Working directory ${{ env.WORKING_DIR }} not found!"
-            exit 1
-          fi
-
-          if [ ! -f "${{ env.WORKING_DIR }}/pyproject.toml" ]; then
-            echo "ERROR: pyproject.toml not found!"
-            exit 1
-          fi
-
-          if [ ! -f "${{ env.WORKING_DIR }}/main.py" ]; then
-            echo "ERROR: main.py not found!"
-            exit 1
-          fi
-
-          echo "Project structure validated"
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.cache/uv
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install uv package manager
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Verify uv installation
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv --version
-
-      - name: Install project dependencies
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          echo "Installing dependencies..."
-          uv pip install --system -e .
-          echo "Dependencies installed successfully"
-
-      - name: Verify imports
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          python -c "import pandas; import numpy; import sklearn; import mlflow; import wandb; print('All core packages importable')"
-
-  # ============================================
-  # LINTING & CODE QUALITY
-  # ============================================
-  lint-and-format:
-    name: Code Quality Checks
-    needs: setup
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install UV and linting tools
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv pip install --system ruff mypy
-
-      - name: Run Ruff linter
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          echo "Running Ruff linter..."
-          ruff check src/ --output-format=github || true
-          echo "Linting completed"
-
-      - name: Check code formatting
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          echo "Checking code formatting..."
-          ruff format --check src/ || true
-          echo "Format check completed"
-
-  # ============================================
-  # UNIT TESTS (runs in parallel, non-blocking)
-  # ============================================
-  unit-tests:
-    name: Unit Tests & Coverage
-    needs: setup
-    runs-on: ubuntu-latest
-    if: always()
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
 
       - name: Install dependencies
         working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv pip install --system -e .
+        run: uv sync --extra dev --extra api --frozen
 
-      - name: Run tests with coverage
+      - name: Ruff lint
         working-directory: ${{ env.WORKING_DIR }}
+        run: uv run ruff check src tests api streamlit_app
+
+      - name: Ruff format check
+        working-directory: ${{ env.WORKING_DIR }}
+        run: uv run ruff format --check src tests api streamlit_app
+
+      - name: Run pipeline tests
+        working-directory: ${{ env.WORKING_DIR }}
+        run: uv run pytest tests -q
+
+      - name: Run API tests
+        working-directory: ${{ env.WORKING_DIR }}
+        run: uv run --extra api pytest api/tests -q
+
+      - name: MLflow smoke test
+        working-directory: ${{ env.WORKING_DIR }}
+        env:
+          GCP_PROJECT_ID: "ci-project"
+          GCS_BUCKET_NAME: "ci-bucket"
+          WANDB_API_KEY: "ci-key"
+          WANDB_PROJECT: "ci-project"
         run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv run pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing || true
-          echo "Tests completed"
+          uv run mlflow run . --env-manager local -P hydra_overrides="main.execute_steps=[]"
 
-      - name: Upload coverage
-        if: always()
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./${{ env.WORKING_DIR }}/coverage.xml
-          flags: unittests
-          fail_ci_if_error: false
-
-  # ============================================
-  # STEP 1: Download Data
-  # ============================================
-  step-01-download:
-    name: Step 1 - Download Data
-    needs: [setup]
+  train-register:
+    name: Train, Sweep and Register
+    needs: quality-gate
+    if: github.event_name == 'workflow_dispatch' && inputs.run_training_pipeline
     runs-on: ubuntu-latest
-    if: |
-      always() &&
-      needs.setup.result == 'success' &&
-      (github.event.inputs.run_full_pipeline == 'true' || github.event_name == 'push')
+    outputs:
+      model_name: ${{ steps.extract-model.outputs.model_name }}
+      model_version: ${{ steps.extract-model.outputs.model_version }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
       - name: Install dependencies
         working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv pip install --system -e .
+        run: uv sync --frozen
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Configure environment
+      - name: Validate required secrets
         run: |
-          echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
-          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
-          echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
-          echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
-          echo "WANDB_MODE=online" >> $GITHUB_ENV
-          echo "WANDB_SILENT=false" >> $GITHUB_ENV
-          echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
-          echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
+          test -n "${{ secrets.GCP_PROJECT_ID }}" || (echo "Missing secret: GCP_PROJECT_ID" && exit 1)
+          test -n "${{ secrets.GCS_BUCKET_NAME }}" || (echo "Missing secret: GCS_BUCKET_NAME" && exit 1)
+          test -n "${{ secrets.WANDB_API_KEY }}" || (echo "Missing secret: WANDB_API_KEY" && exit 1)
 
-      - name: Run Step 01 - Download Data
+      - name: Run full pipeline with MLflow
+        working-directory: ${{ env.WORKING_DIR }}
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY }}
+          WANDB_PROJECT: ${{ env.WANDB_PROJECT }}
+          WANDB_CONSOLE: wrap
+          WANDB__SERVICE_WAIT: "300"
+        run: |
+          uv run mlflow run . --env-manager local -P hydra_overrides="sweep.sweep_count=${{ inputs.sweep_count }}"
+
+      - name: Validate registration outputs
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          python main.py main.execute_steps='["01_download_data"]'
+          test -f src/model/06_sweep/best_params.yaml
+          test -f configs/model_config.yaml
+          test -f models/trained/housing_price_model.pkl
 
-      - name: Verify outputs
+      - name: Extract model metadata
+        id: extract-model
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          echo "Step 1 completed successfully"
+          uv run python - <<'PY'
+          import os
+          from pathlib import Path
+          import yaml
 
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+          config_path = Path("configs/model_config.yaml")
+          payload = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+          model_data = payload.get("model", {})
+
+          model_name = str(model_data.get("name", "")).strip()
+          model_version = str(model_data.get("version", "")).strip()
+
+          if not model_name or not model_version:
+              raise SystemExit("Invalid model_config.yaml: missing model name/version")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"model_name={model_name}\n")
+              output.write(f"model_version={model_version}\n")
+          PY
+
+      - name: Upload pipeline artifacts
+        uses: actions/upload-artifact@v6
         with:
-          name: step-01-outputs
+          name: training-run-artifacts
           path: |
-            ${{ env.WORKING_DIR }}/mlruns/
-            ${{ env.WORKING_DIR }}/outputs/
-          retention-days: 7
-
-  # ============================================
-  # STEP 2: Preprocessing & Imputation
-  # ============================================
-  step-02-preprocessing:
-    name: Step 2 - Preprocessing
-    needs: step-01-download
-    runs-on: ubuntu-latest
-    if: always() && needs.step-01-download.result == 'success'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv pip install --system -e .
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Configure environment
-        run: |
-          echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
-          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
-          echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
-          echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
-          echo "WANDB_MODE=online" >> $GITHUB_ENV
-          echo "WANDB_SILENT=false" >> $GITHUB_ENV
-          echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
-          echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-
-      - name: Run Step 02 - Preprocessing
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          python main.py main.execute_steps='["02_preprocessing_and_imputation"]'
-
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: step-02-outputs
-          path: |
-            ${{ env.WORKING_DIR }}/mlruns/
-            ${{ env.WORKING_DIR }}/outputs/
-          retention-days: 7
-
-  # ============================================
-  # STEP 3: Feature Engineering
-  # ============================================
-  step-03-feature-engineering:
-    name: Step 3 - Feature Engineering
-    needs: step-02-preprocessing
-    runs-on: ubuntu-latest
-    if: always() && needs.step-02-preprocessing.result == 'success'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv pip install --system -e .
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Configure environment
-        run: |
-          echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
-          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
-          echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
-          echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
-          echo "WANDB_MODE=online" >> $GITHUB_ENV
-          echo "WANDB_SILENT=false" >> $GITHUB_ENV
-          echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
-          echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-
-      - name: Run Step 03 - Feature Engineering
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          python main.py main.execute_steps='["03_feature_engineering"]'
-
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: step-03-outputs
-          path: |
-            ${{ env.WORKING_DIR }}/mlruns/
-            ${{ env.WORKING_DIR }}/outputs/
-          retention-days: 7
-
-  # ============================================
-  # STEP 4: Data Segregation
-  # ============================================
-  step-04-segregation:
-    name: Step 4 - Data Segregation
-    needs: step-03-feature-engineering
-    runs-on: ubuntu-latest
-    if: always() && needs.step-03-feature-engineering.result == 'success'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv pip install --system -e .
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Configure environment
-        run: |
-          echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
-          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
-          echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
-          echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
-          echo "WANDB_MODE=online" >> $GITHUB_ENV
-          echo "WANDB_SILENT=false" >> $GITHUB_ENV
-          echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
-          echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-
-      - name: Run Step 04 - Data Segregation
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          python main.py main.execute_steps='["04_segregation"]'
-
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: step-04-outputs
-          path: |
-            ${{ env.WORKING_DIR }}/mlruns/
-            ${{ env.WORKING_DIR }}/outputs/
-            ${{ env.WORKING_DIR }}/artifacts/
-          retention-days: 7
-
-  # ============================================
-  # STEP 5: Model Selection
-  # ============================================
-  step-05-model-selection:
-    name: Step 5 - Model Selection
-    needs: step-04-segregation
-    runs-on: ubuntu-latest
-    if: always() && needs.step-04-segregation.result == 'success'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv pip install --system -e .
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Configure environment
-        run: |
-          echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
-          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
-          echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
-          echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
-          echo "WANDB_MODE=online" >> $GITHUB_ENV
-          echo "WANDB_SILENT=false" >> $GITHUB_ENV
-          echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
-          echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-
-      - name: Run Step 05 - Model Selection
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          python main.py main.execute_steps='["05_model_selection"]'
-
-      - name: Upload model artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: step-05-models
-          path: |
-            ${{ env.WORKING_DIR }}/mlruns/
-            ${{ env.WORKING_DIR }}/models/
-          retention-days: 30
-
-  # ============================================
-  # STEP 6: Hyperparameter Sweep
-  # ============================================
-  step-06-sweep:
-    name: Step 6 - Hyperparameter Sweep
-    needs: step-05-model-selection
-    runs-on: ubuntu-latest
-    if: always() && needs.step-05-model-selection.result == 'success'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv pip install --system -e .
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Configure environment
-        run: |
-          echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
-          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
-          echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
-          echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
-          echo "WANDB_MODE=online" >> $GITHUB_ENV
-          echo "WANDB_SILENT=false" >> $GITHUB_ENV
-          echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
-          echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-
-      - name: Run Step 06 - Hyperparameter Sweep
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          python main.py main.execute_steps='["06_sweep"]' sweep.sweep_count=${{ github.event.inputs.sweep_count || '5' }}
-
-      - name: Verify best_params.yaml generated
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          if [ -f "src/model/06_sweep/best_params.yaml" ]; then
-            echo "best_params.yaml generated successfully"
-            cat src/model/06_sweep/best_params.yaml
-          else
-            echo "ERROR: best_params.yaml not found!"
-            exit 1
-          fi
-
-      - name: Upload sweep results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: step-06-sweep-results
-          path: |
-            ${{ env.WORKING_DIR }}/src/model/06_sweep/best_params.yaml
-            ${{ env.WORKING_DIR }}/mlruns/
-          retention-days: 30
-
-  # ============================================
-  # STEP 7: Model Registration
-  # ============================================
-  step-07-registration:
-    name: Step 7 - Model Registration
-    needs: step-06-sweep
-    runs-on: ubuntu-latest
-    if: always() && needs.step-06-sweep.result == 'success'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.cargo/bin:$PATH"
-          uv pip install --system -e .
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Download sweep results
-        uses: actions/download-artifact@v4
-        with:
-          name: step-06-sweep-results
-          path: ${{ env.WORKING_DIR }}
-
-      - name: Verify best_params.yaml exists
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          if [ -f "src/model/06_sweep/best_params.yaml" ]; then
-            echo "best_params.yaml found"
-            cat src/model/06_sweep/best_params.yaml
-          else
-            echo "ERROR: best_params.yaml not found after download!"
-            ls -R src/model/06_sweep/
-            exit 1
-          fi
-
-      - name: Configure environment
-        run: |
-          echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> $GITHUB_ENV
-          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
-          echo "WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}" >> $GITHUB_ENV
-          echo "WANDB_PROJECT=${{ env.WANDB_PROJECT }}" >> $GITHUB_ENV
-          echo "WANDB_MODE=online" >> $GITHUB_ENV
-          echo "WANDB_SILENT=false" >> $GITHUB_ENV
-          echo "WANDB_CONSOLE=wrap" >> $GITHUB_ENV
-          echo "WANDB__SERVICE_WAIT=300" >> $GITHUB_ENV
-
-      - name: Run Step 07 - Model Registration
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          python main.py main.execute_steps='["07_registration"]'
-
-      - name: Verify model artifacts
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          if [ -d "models/trained/" ]; then
-            echo "Model artifacts created"
-            ls -lah models/trained/
-          fi
-
-          if [ -f "configs/model_config.yaml" ]; then
-            echo "Model config generated"
-            cat configs/model_config.yaml
-          fi
-
-      - name: Upload registered model artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: step-07-registered-model
-          path: |
-            ${{ env.WORKING_DIR }}/models/trained/
+            ${{ env.WORKING_DIR }}/mlruns
+            ${{ env.WORKING_DIR }}/mlflow.db
+            ${{ env.WORKING_DIR }}/models/trained
             ${{ env.WORKING_DIR }}/configs/model_config.yaml
-            ${{ env.WORKING_DIR }}/mlruns/
-            ${{ env.WORKING_DIR }}/artifacts/registration/
-          retention-days: 90
+            ${{ env.WORKING_DIR }}/src/model/06_sweep/best_params.yaml
+            ${{ env.WORKING_DIR }}/artifacts
+          if-no-files-found: error
+          retention-days: 30
 
-  # ============================================
-  # DOCKER BUILD & TEST
-  # ============================================
-  docker-test:
-    name: Docker Build & Test
-    needs: step-07-registration
+  promote-to-production:
+    name: Promote Model to Production
+    needs: train-register
+    if: github.event_name == 'workflow_dispatch' && inputs.run_training_pipeline && inputs.promote_to_production
     runs-on: ubuntu-latest
-    if: |
-      always() &&
-      needs.step-07-registration.result == 'success' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    environment:
+      name: production
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-      - name: Download model artifacts
-        uses: actions/download-artifact@v4
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          name: step-07-registered-model
-          path: ${{ env.WORKING_DIR }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: uv sync --frozen
+
+      - name: Download training artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: training-run-artifacts
+          path: .
+
+      - name: Promote model version with guardrails
+        working-directory: ${{ env.WORKING_DIR }}
+        env:
+          MLFLOW_TRACKING_URI: sqlite:///${{ github.workspace }}/cap2-end_to_end/mlflow.db
+        run: |
+          uv run python scripts/promote_model.py \
+            --model-name "${{ needs.train-register.outputs.model_name }}" \
+            --from-stage Staging \
+            --to-stage Production \
+            --min-r2 "${{ inputs.min_r2 }}" \
+            --max-mape "${{ inputs.max_mape }}" \
+            --archive-existing-production \
+            --report-path artifacts/promotion/promotion_report.json
+
+      - name: Upload promotion report
+        uses: actions/upload-artifact@v6
+        with:
+          name: model-promotion-report
+          path: |
+            ${{ env.WORKING_DIR }}/artifacts/promotion/promotion_report.json
+            ${{ env.WORKING_DIR }}/mlflow.db
+            ${{ env.WORKING_DIR }}/mlruns
+          if-no-files-found: error
+          retention-days: 30
+
+  docker-api-smoke:
+    name: Docker API Smoke Test
+    needs: train-register
+    if: github.event_name == 'workflow_dispatch' && inputs.run_training_pipeline
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download training artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: training-run-artifacts
+          path: .
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build API Docker image
-        uses: docker/build-push-action@v5
+      - name: Build API image
+        uses: docker/build-push-action@v6
         with:
-          context: ./${{ env.WORKING_DIR }}/api
+          context: ./cap2-end_to_end/api
           push: false
           load: true
           tags: housing-mlops-api:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
-      - name: Test Docker image
+      - name: Run API container and health check
         run: |
-          docker run -d --name test-api -p 8080:8080 housing-mlops-api:test
-          sleep 10
-          curl -f http://localhost:8080/health || exit 1
-          echo "Docker image works correctly"
-          docker stop test-api
+          docker run -d --name housing-api-test \
+            -p 8080:8080 \
+            -v "${PWD}/cap2-end_to_end/models/trained:/app/models/trained" \
+            -e LOCAL_MODEL_PATH="/app/models/trained/housing_price_model.pkl" \
+            housing-mlops-api:test
 
-  # ============================================
-  # PIPELINE SUMMARY
-  # ============================================
-  pipeline-summary:
-    name: Pipeline Summary
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/health > /tmp/health.json; then
+              break
+            fi
+            sleep 2
+          done
+
+          cat /tmp/health.json
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/health.json").read_text(encoding="utf-8"))
+          status = payload.get("status")
+          if status not in {"healthy", "degraded"}:
+              raise SystemExit(f"Unexpected health status: {status}")
+          PY
+
+          docker logs housing-api-test --tail 200
+          docker rm -f housing-api-test
+
+  summary:
+    name: Summary
     runs-on: ubuntu-latest
-    needs:
-      - setup
-      - lint-and-format
-      - unit-tests
-      - step-01-download
-      - step-02-preprocessing
-      - step-03-feature-engineering
-      - step-04-segregation
-      - step-05-model-selection
-      - step-06-sweep
-      - step-07-registration
-      - docker-test
     if: always()
+    needs:
+      - quality-gate
+      - train-register
+      - promote-to-production
+      - docker-api-smoke
 
     steps:
-      - name: Generate summary
+      - name: Publish run summary
         run: |
-          echo "## MLOps Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Pipeline Steps Status" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Setup & Validation | ${{ needs.setup.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Code Quality | ${{ needs.lint-and-format.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 01 - Download Data | ${{ needs.step-01-download.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 02 - Preprocessing | ${{ needs.step-02-preprocessing.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 03 - Feature Engineering | ${{ needs.step-03-feature-engineering.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 04 - Segregation | ${{ needs.step-04-segregation.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 05 - Model Selection | ${{ needs.step-05-model-selection.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 06 - Hyperparameter Sweep | ${{ needs.step-06-sweep.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 07 - Model Registration | ${{ needs.step-07-registration.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker Build & Test | ${{ needs.docker-test.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Monitoring" >> $GITHUB_STEP_SUMMARY
-          echo "- [Weights & Biases Dashboard](https://wandb.ai/${{ secrets.WANDB_ENTITY }}/${{ env.WANDB_PROJECT }})" >> $GITHUB_STEP_SUMMARY
-          echo "- [MLflow UI](http://localhost:5555)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*Generated at $(date)*" >> $GITHUB_STEP_SUMMARY
+          echo "## MLOps CI/CD Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Job | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| quality-gate | ${{ needs.quality-gate.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| train-register | ${{ needs.train-register.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| promote-to-production | ${{ needs.promote-to-production.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| docker-api-smoke | ${{ needs.docker-api-smoke.result }} |" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Check overall status
+      - name: Enforce final status
         run: |
-          if [ "${{ needs.step-07-registration.result }}" == "success" ] && \
-             [ "${{ needs.docker-test.result }}" == "success" ]; then
-            echo "Pipeline completed successfully!"
-            exit 0
-          else
-            echo "Pipeline failed or incomplete"
-            exit 1
+          FAIL=0
+
+          if [ "${{ needs.quality-gate.result }}" != "success" ]; then
+            FAIL=1
           fi
+
+          REQUESTED_TRAIN="${{ github.event_name == 'workflow_dispatch' && inputs.run_training_pipeline || false }}"
+          REQUESTED_PROMOTION="${{ github.event_name == 'workflow_dispatch' && inputs.promote_to_production || false }}"
+
+          if [ "$REQUESTED_TRAIN" = "true" ]; then
+            if [ "${{ needs.train-register.result }}" != "success" ]; then
+              FAIL=1
+            fi
+            if [ "${{ needs.docker-api-smoke.result }}" != "success" ]; then
+              FAIL=1
+            fi
+          fi
+
+          if [ "$REQUESTED_PROMOTION" = "true" ]; then
+            if [ "${{ needs.promote-to-production.result }}" != "success" ]; then
+              FAIL=1
+            fi
+          fi
+
+          exit "$FAIL"

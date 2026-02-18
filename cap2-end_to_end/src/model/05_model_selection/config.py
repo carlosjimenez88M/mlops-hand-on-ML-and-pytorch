@@ -5,6 +5,7 @@ Date: 2026-01-13
 """
 
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,9 +23,7 @@ class ComponentSettings(BaseSettings):
     """Settings for model selection component."""
 
     model_config = SettingsConfigDict(
-        env_file=str(find_env_file()),
-        env_file_encoding='utf-8',
-        extra='ignore'
+        env_file=str(find_env_file()), env_file_encoding="utf-8", extra="ignore"
     )
 
     GCS_BUCKET_NAME: str = ""

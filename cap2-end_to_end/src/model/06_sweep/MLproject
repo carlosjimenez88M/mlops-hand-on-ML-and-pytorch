@@ -1,5 +1,4 @@
 name: hyperparameter_sweep
-conda_env: conda.yaml
 
 entry_points:
   main:
@@ -10,7 +9,9 @@ entry_points:
       gcs_test_path: {type: string}
       bucket_name: {type: string}
       wandb_project: {type: string}
+      best_model_type: {type: string, default: "RandomForest"}
       target_column: {type: string, default: "median_house_value"}
       sweep_count: {type: int, default: 50}
+      random_state: {type: int, default: 42}
 
-    command: "python main.py --train_artifact_name {train_artifact_name} --test_artifact_name {test_artifact_name} --gcs_train_path {gcs_train_path} --gcs_test_path {gcs_test_path} --bucket_name {bucket_name} --wandb_project {wandb_project} --target_column {target_column} --sweep_count {sweep_count}"
+    command: "python main.py --train_artifact_name {train_artifact_name} --test_artifact_name {test_artifact_name} --gcs_train_path {gcs_train_path} --gcs_test_path {gcs_test_path} --bucket_name {bucket_name} --wandb_project {wandb_project} --best_model_type {best_model_type} --target_column {target_column} --sweep_count {sweep_count} --random_state {random_state}"

@@ -2,11 +2,13 @@
 Preprocessor for raw housing features.
 Transforms raw input to model-ready features.
 """
-import pandas as pd
-import numpy as np
-from sklearn.cluster import KMeans
-from typing import List
+
 import logging
+from typing import List
+
+import numpy as np
+import pandas as pd
+from sklearn.cluster import KMeans
 
 logger = logging.getLogger(__name__)
 
@@ -21,30 +23,24 @@ class HousingPreprocessor:
     """
 
     # Expected ocean proximity categories (from training)
-    OCEAN_PROXIMITY_CATEGORIES = [
-        '<1H OCEAN',
-        'INLAND',
-        'ISLAND',
-        'NEAR BAY',
-        'NEAR OCEAN'
-    ]
+    OCEAN_PROXIMITY_CATEGORIES = ["<1H OCEAN", "INLAND", "ISLAND", "NEAR BAY", "NEAR OCEAN"]
 
     # Expected feature order (from model.feature_names_in_)
     EXPECTED_FEATURES = [
-        'longitude',
-        'latitude',
-        'housing_median_age',
-        'total_rooms',
-        'total_bedrooms',
-        'population',
-        'households',
-        'median_income',
-        'ocean_proximity_<1H OCEAN',
-        'ocean_proximity_INLAND',
-        'ocean_proximity_ISLAND',
-        'ocean_proximity_NEAR BAY',
-        'ocean_proximity_NEAR OCEAN',
-        'cluster_label'
+        "longitude",
+        "latitude",
+        "housing_median_age",
+        "total_rooms",
+        "total_bedrooms",
+        "population",
+        "households",
+        "median_income",
+        "ocean_proximity_<1H OCEAN",
+        "ocean_proximity_INLAND",
+        "ocean_proximity_ISLAND",
+        "ocean_proximity_NEAR BAY",
+        "ocean_proximity_NEAR OCEAN",
+        "cluster_label",
     ]
 
     def __init__(self, n_clusters: int = 10):
@@ -85,13 +81,15 @@ class HousingPreprocessor:
         # San Diego: ~-117, 33
         # Sacramento: ~-121, 38.5
 
-        major_centers = np.array([
-            [-118, 34],   # LA
-            [-122, 37.5], # SF
-            [-117, 33],   # San Diego
-            [-121, 38.5], # Sacramento
-            [-119, 36.5], # Fresno area
-        ])
+        major_centers = np.array(
+            [
+                [-118, 34],  # LA
+                [-122, 37.5],  # SF
+                [-117, 33],  # San Diego
+                [-121, 38.5],  # Sacramento
+                [-119, 36.5],  # Fresno area
+            ]
+        )
 
         # Add major centers multiple times for proper weighting
         lon_samples[:50] = major_centers[:, 0].repeat(10)
@@ -100,10 +98,12 @@ class HousingPreprocessor:
         X_geo = np.column_stack([lon_samples, lat_samples])
 
         # Fit KMeans
+        # Use random init to avoid numerical warnings seen with k-means++ in this environment.
         self.kmeans = KMeans(
             n_clusters=self.n_clusters,
+            init="random",
             n_init=10,
-            random_state=42
+            random_state=42,
         )
         self.kmeans.fit(X_geo)
 
@@ -124,9 +124,15 @@ class HousingPreprocessor:
         """
         # Validate input
         required_cols = [
-            'longitude', 'latitude', 'housing_median_age',
-            'total_rooms', 'total_bedrooms', 'population',
-            'households', 'median_income', 'ocean_proximity'
+            "longitude",
+            "latitude",
+            "housing_median_age",
+            "total_rooms",
+            "total_bedrooms",
+            "population",
+            "households",
+            "median_income",
+            "ocean_proximity",
         ]
 
         missing_cols = set(required_cols) - set(df.columns)
@@ -138,13 +144,13 @@ class HousingPreprocessor:
 
         # 1. One-hot encode ocean_proximity
         for category in self.OCEAN_PROXIMITY_CATEGORIES:
-            col_name = f'ocean_proximity_{category}'
-            df_processed[col_name] = (df['ocean_proximity'] == category).astype(int)
+            col_name = f"ocean_proximity_{category}"
+            df_processed[col_name] = (df["ocean_proximity"] == category).astype(int)
 
         # 2. Create cluster_label using KMeans
-        X_geo = df_processed[['longitude', 'latitude']].values
+        X_geo = df_processed[["longitude", "latitude"]].values
         cluster_labels = self.kmeans.predict(X_geo)
-        df_processed['cluster_label'] = cluster_labels
+        df_processed["cluster_label"] = cluster_labels
 
         # 3. Select and order columns as expected by model
         df_final = df_processed[self.EXPECTED_FEATURES]

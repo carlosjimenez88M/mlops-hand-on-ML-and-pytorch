@@ -6,36 +6,35 @@ Date: 2025-11-28
 
 import io
 import logging
-from datetime import datetime
-from typing import Optional, Dict
-from matplotlib.figure import Figure
-
-import pandas as pd
-import mlflow
-from google.cloud import storage
-from google.api_core import exceptions as gcp_exceptions
-
-from config import settings
-from models import (
-    PreprocessingConfig,
-    PreprocessingStats,
-    PreprocessingResult,
-    WandBArtifactMetadata
-)
-from imputation_analyzer import ImputationAnalyzer
 
 # Logger configuration
 import sys
+from datetime import datetime
+from typing import Dict, Optional
+
+import mlflow
+import pandas as pd
+from google.api_core import exceptions as gcp_exceptions
+from google.cloud import storage
+from imputation_analyzer import ImputationAnalyzer
+from matplotlib.figure import Figure
+
+from models import (
+    PreprocessingConfig,
+    PreprocessingResult,
+    PreprocessingStats,
+    WandBArtifactMetadata,
+)
+
 try:
-    sys.path.insert(0, str(__file__).rsplit('/', 5)[0])
+    sys.path.insert(0, str(__file__).rsplit("/", 5)[0])
     from src.utils.colored_logger import setup_colored_logger
+
     logger = setup_colored_logger(__name__)
 except (ImportError, Exception):
     import logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     logger = logging.getLogger(__name__)
 
 
@@ -59,8 +58,9 @@ class DataPreprocessor:
         try:
             # If GOOGLE_APPLICATION_CREDENTIALS is empty, unset it to use ADC
             import os
-            if os.getenv('GOOGLE_APPLICATION_CREDENTIALS') == '':
-                os.environ.pop('GOOGLE_APPLICATION_CREDENTIALS', None)
+
+            if os.getenv("GOOGLE_APPLICATION_CREDENTIALS") == "":
+                os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 
             self.storage_client = storage.Client()
             self.bucket = self.storage_client.bucket(self.config.bucket_name)
@@ -73,8 +73,7 @@ class DataPreprocessor:
         except Exception as e:
             logger.error(f"Error connecting to GCS: {e}")
             raise RuntimeError(
-                "GCS is required for this component. "
-                "Check your configuration and credentials."
+                "GCS is required for this component. Check your configuration and credentials."
             ) from e
 
     def download_from_gcs(self) -> pd.DataFrame:
@@ -105,7 +104,7 @@ class DataPreprocessor:
             logger.info(f"Downloaded: {size_mb:.2f} MB")
 
             # Load into DataFrame (supports CSV and Parquet)
-            if gcs_path.endswith('.parquet'):
+            if gcs_path.endswith(".parquet"):
                 df = pd.read_parquet(io.BytesIO(content_bytes))
             else:
                 df = pd.read_csv(io.BytesIO(content_bytes))
@@ -121,10 +120,10 @@ class DataPreprocessor:
     def get_input_stats(self, df: pd.DataFrame) -> dict:
         """Get statistics from input data."""
         return {
-            'input_rows': len(df),
-            'input_columns': len(df.columns),
-            'missing_values_before': df.isnull().sum().to_dict(),
-            'input_size_mb': df.memory_usage(deep=True).sum() / (1024 * 1024)
+            "input_rows": len(df),
+            "input_columns": len(df.columns),
+            "missing_values_before": df.isnull().sum().to_dict(),
+            "input_size_mb": df.memory_usage(deep=True).sum() / (1024 * 1024),
         }
 
     def handle_missing_values(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -145,15 +144,19 @@ class DataPreprocessor:
             # Use automatic imputation method selection
             # This compares SimpleImputer (median, mean), KNNImputer, and IterativeImputer (RF)
             df_processed = self.analyze_and_select_best_imputation(df_processed)
-            logger.info(f"Auto imputation completed using best method: {self.best_imputation_method}")
+            logger.info(
+                f"Auto imputation completed using best method: {self.best_imputation_method}"
+            )
 
         elif self.config.imputation_strategy == "drop":
             df_processed = df_processed.dropna()
-            logger.info(f"Dropped rows with missing values: {len(df) - len(df_processed)} rows removed")
+            logger.info(
+                f"Dropped rows with missing values: {len(df) - len(df_processed)} rows removed"
+            )
 
         elif self.config.imputation_strategy == "median":
             # Impute numerical columns with median
-            numerical_cols = df_processed.select_dtypes(include=['int64', 'float64']).columns
+            numerical_cols = df_processed.select_dtypes(include=["int64", "float64"]).columns
             for col in numerical_cols:
                 if df_processed[col].isnull().any():
                     median_value = df_processed[col].median()
@@ -162,7 +165,7 @@ class DataPreprocessor:
 
         elif self.config.imputation_strategy == "mean":
             # Impute numerical columns with mean
-            numerical_cols = df_processed.select_dtypes(include=['int64', 'float64']).columns
+            numerical_cols = df_processed.select_dtypes(include=["int64", "float64"]).columns
             for col in numerical_cols:
                 if df_processed[col].isnull().any():
                     mean_value = df_processed[col].mean()
@@ -198,27 +201,27 @@ class DataPreprocessor:
         new_features = []
 
         # Feature 1: rooms_per_household
-        if 'total_rooms' in df.columns and 'households' in df.columns:
-            df_processed['rooms_per_household'] = (
-                df_processed['total_rooms'] / df_processed['households']
+        if "total_rooms" in df.columns and "households" in df.columns:
+            df_processed["rooms_per_household"] = (
+                df_processed["total_rooms"] / df_processed["households"]
             )
-            new_features.append('rooms_per_household')
+            new_features.append("rooms_per_household")
             logger.info("Created feature: rooms_per_household")
 
         # Feature 2: bedrooms_per_room
-        if 'total_bedrooms' in df.columns and 'total_rooms' in df.columns:
-            df_processed['bedrooms_per_room'] = (
-                df_processed['total_bedrooms'] / df_processed['total_rooms']
+        if "total_bedrooms" in df.columns and "total_rooms" in df.columns:
+            df_processed["bedrooms_per_room"] = (
+                df_processed["total_bedrooms"] / df_processed["total_rooms"]
             )
-            new_features.append('bedrooms_per_room')
+            new_features.append("bedrooms_per_room")
             logger.info("Created feature: bedrooms_per_room")
 
         # Feature 3: population_per_household
-        if 'population' in df.columns and 'households' in df.columns:
-            df_processed['population_per_household'] = (
-                df_processed['population'] / df_processed['households']
+        if "population" in df.columns and "households" in df.columns:
+            df_processed["population_per_household"] = (
+                df_processed["population"] / df_processed["households"]
             )
-            new_features.append('population_per_household')
+            new_features.append("population_per_household")
             logger.info("Created feature: population_per_household")
 
         logger.info(f"Created {len(new_features)} new features")
@@ -243,15 +246,15 @@ class DataPreprocessor:
 
         try:
             # Convert DataFrame to bytes (CSV or Parquet)
-            if gcs_path.endswith('.parquet'):
+            if gcs_path.endswith(".parquet"):
                 buffer = io.BytesIO()
-                df.to_parquet(buffer, index=False, engine='pyarrow')
+                df.to_parquet(buffer, index=False, engine="pyarrow")
                 buffer.seek(0)
                 data_bytes = buffer.getvalue()
             else:
                 csv_buffer = io.StringIO()
                 df.to_csv(csv_buffer, index=False)
-                data_bytes = csv_buffer.getvalue().encode('utf-8')
+                data_bytes = csv_buffer.getvalue().encode("utf-8")
 
             # Upload to GCS
             blob = self.bucket.blob(gcs_path)
@@ -264,10 +267,10 @@ class DataPreprocessor:
                 "rows": str(len(df)),
                 "columns": str(len(df.columns)),
                 "imputation_strategy": self.config.imputation_strategy,
-                "file_size_mb": str(len(data_bytes) / (1024 * 1024))
+                "file_size_mb": str(len(data_bytes) / (1024 * 1024)),
             }
 
-            blob.upload_from_string(data_bytes, content_type='text/csv')
+            blob.upload_from_string(data_bytes, content_type="text/csv")
 
             gcs_uri = f"gs://{self.config.bucket_name}/{gcs_path}"
             logger.info(f"Uploaded to GCS: {gcs_uri}")
@@ -308,7 +311,9 @@ class DataPreprocessor:
                         for metric_name, metric_value in self.imputation_metrics.items():
                             mlflow.log_metric(metric_name, metric_value)
                         mlflow.log_param("best_imputation_method", self.best_imputation_method)
-                        logger.info(f"Logged {len(self.imputation_metrics)} imputation metrics to MLflow")
+                        logger.info(
+                            f"Logged {len(self.imputation_metrics)} imputation metrics to MLflow"
+                        )
                         logger.info(f"Best imputation method: {self.best_imputation_method}")
                     else:
                         logger.warning("No active MLflow run, skipping MLflow logging")
@@ -320,11 +325,11 @@ class DataPreprocessor:
 
             # 5. Get output statistics
             output_stats = {
-                'output_rows': len(df_processed),
-                'output_columns': len(df_processed.columns),
-                'missing_values_after': df_processed.isnull().sum().to_dict(),
-                'output_size_mb': df_processed.memory_usage(deep=True).sum() / (1024 * 1024),
-                'new_features': new_features
+                "output_rows": len(df_processed),
+                "output_columns": len(df_processed.columns),
+                "missing_values_after": df_processed.isnull().sum().to_dict(),
+                "output_size_mb": df_processed.memory_usage(deep=True).sum() / (1024 * 1024),
+                "new_features": new_features,
             }
 
             # 6. Upload to GCS
@@ -333,11 +338,7 @@ class DataPreprocessor:
             self.df_output = df_processed
 
             # 7. Create statistics object
-            stats = PreprocessingStats(
-                **input_stats,
-                **output_stats,
-                processed_at=datetime.now()
-            )
+            stats = PreprocessingStats(**input_stats, **output_stats, processed_at=datetime.now())
 
             logger.info("\n" + "=" * 70)
             logger.info("PREPROCESSING COMPLETED SUCCESSFULLY")
@@ -357,7 +358,7 @@ class DataPreprocessor:
                 gcs_output_uri=gcs_output_uri,
                 stats=stats,
                 artifact_name=self.config.artifact_name,
-                success=True
+                success=True,
             )
 
         except Exception as e:
@@ -372,14 +373,16 @@ class DataPreprocessor:
                     output_rows=0,
                     output_columns=0,
                     input_size_mb=0,
-                    output_size_mb=0
+                    output_size_mb=0,
                 ),
                 artifact_name=self.config.artifact_name,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
             )
 
-    def analyze_and_select_best_imputation(self, df: pd.DataFrame, target_column: str = "total_bedrooms") -> pd.DataFrame:
+    def analyze_and_select_best_imputation(
+        self, df: pd.DataFrame, target_column: str = "total_bedrooms"
+    ) -> pd.DataFrame:
         """
         Analyzes different imputation methods and selects the best one.
 
@@ -412,7 +415,9 @@ class DataPreprocessor:
         # Get best method name with None check
         best_method_key = self.imputation_analyzer.best_method
         if best_method_key and best_method_key in self.imputation_analyzer.results:
-            self.best_imputation_method = self.imputation_analyzer.results[best_method_key].method_name
+            self.best_imputation_method = self.imputation_analyzer.results[
+                best_method_key
+            ].method_name
         else:
             self.best_imputation_method = "unknown"
             logger.warning("Could not determine best imputation method")
@@ -436,10 +441,12 @@ class DataPreprocessor:
 
         # Correlation heatmap
         corr_matrix = self.imputation_analyzer.compute_correlation_matrix()
-        plots['correlation_heatmap'] = self.imputation_analyzer.create_correlation_heatmap(corr_matrix)
+        plots["correlation_heatmap"] = self.imputation_analyzer.create_correlation_heatmap(
+            corr_matrix
+        )
 
         # Comparison plot
-        plots['imputation_comparison'] = self.imputation_analyzer.create_comparison_plot()
+        plots["imputation_comparison"] = self.imputation_analyzer.create_comparison_plot()
 
         return plots
 
@@ -460,5 +467,5 @@ class DataPreprocessor:
             columns_added=result.stats.columns_added,
             new_features=result.stats.new_features,
             imputation_strategy=self.config.imputation_strategy,
-            processed_at=result.stats.processed_at.isoformat()
+            processed_at=result.stats.processed_at.isoformat(),
         )

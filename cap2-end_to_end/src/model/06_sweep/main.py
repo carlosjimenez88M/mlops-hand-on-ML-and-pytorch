@@ -1,124 +1,263 @@
-"""
-W&B Sweep for Random Forest Hyperparameter Optimization.
-Based on: https://wandb.ai/aman-arora/mlops-course-001/reports/Random-Forest-Regression
-"""
+"""W&B Bayesian sweep step for post-selection model fine-tuning."""
+
+from __future__ import annotations
+
 import argparse
+import logging
 import os
 import sys
-import yaml
-import wandb
-import logging
 from pathlib import Path
+from typing import Any
 
+import yaml
+
+import wandb
+from models import SupportedModelType, SweepBestParams, SweepExecutionConfig, SweepRunSummary
 from utils import (
-    download_data_from_gcs,
+    GCSDataRepository,
+    ModelFactory,
+    evaluate_model,
+    extract_feature_importances,
     prepare_data,
-    train_random_forest,
-    evaluate_model
+    train_model,
 )
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+try:
+    project_root = Path(__file__).resolve().parents[3]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
 
-# Module-level data cache (loaded once, reused across sweep runs)
-_data_cache = {
-    "X_train": None,
-    "X_test": None,
-    "y_train": None,
-    "y_test": None,
-    "feature_names": None
-}
+    from src.utils.colored_logger import setup_colored_logger
+
+    setup_colored_logger()
+    logger = logging.getLogger(__name__)
+except (ImportError, Exception):
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logger = logging.getLogger(__name__)
 
 
-def train():
-    """
-    Training function called by W&B Sweep agent.
-    This function is executed for each hyperparameter combination.
+class BayesianSweepWorkflow:
+    """Orchestrates model-specific Bayesian sweep execution."""
 
-    Uses module-level data cache to avoid reloading data on each run.
-    """
-    # Initialize W&B run (managed by sweep agent)
-    run = wandb.init()
+    def __init__(self, config: SweepExecutionConfig):
+        self.config = config
+        self.repository = GCSDataRepository(bucket_name=config.bucket_name)
 
-    # Get hyperparameters from sweep config
-    config = wandb.config
+        self.x_train = None
+        self.y_train = None
+        self.x_test = None
+        self.y_test = None
+        self.feature_names: list[str] = []
 
-    logger.info("=" * 70)
-    logger.info(f"SWEEP RUN: {run.name}")
-    logger.info("=" * 70)
-    logger.info(f"Hyperparameters:")
-    logger.info(f"  n_estimators: {config.n_estimators}")
-    logger.info(f"  max_depth: {config.max_depth}")
-    logger.info(f"  min_samples_split: {config.min_samples_split}")
-    logger.info(f"  min_samples_leaf: {config.min_samples_leaf}")
-    logger.info(f"  max_features: {config.max_features}")
+        self.run_summaries: list[SweepRunSummary] = []
 
-    try:
-        # Prepare parameters
-        params = {
-            'n_estimators': int(config.n_estimators),
-            'max_depth': int(config.max_depth) if config.max_depth else None,
-            'min_samples_split': int(config.min_samples_split),
-            'min_samples_leaf': int(config.min_samples_leaf),
-            'max_features': config.max_features,
-            'random_state': 42
-        }
+    def _load_data_once(self) -> None:
+        """Load and prepare train/test data a single time for all sweep runs."""
+        logger.info("Loading training data from GCS...")
+        train_df = self.repository.download_dataframe(self.config.gcs_train_path)
+        self.x_train, self.y_train = prepare_data(train_df, self.config.target_column)
 
-        # Train model using cached data
-        model = train_random_forest(
-            _data_cache["X_train"],
-            _data_cache["y_train"],
-            params
+        logger.info("Loading test data from GCS...")
+        test_df = self.repository.download_dataframe(self.config.gcs_test_path)
+        self.x_test, self.y_test = prepare_data(test_df, self.config.target_column)
+
+        self.feature_names = self.x_train.columns.tolist()
+
+        logger.info("Data cache ready")
+        logger.info("  Train: %s", self.x_train.shape)
+        logger.info("  Test: %s", self.x_test.shape)
+        logger.info("  Features: %s", len(self.feature_names))
+
+    def _load_custom_random_forest_config(self) -> dict[str, Any] | None:
+        """Load custom RF sweep config when available."""
+        if self.config.best_model_type != SupportedModelType.RANDOM_FOREST:
+            return None
+
+        config_path = Path(__file__).resolve().parent / self.config.sweep_config
+        if not config_path.exists():
+            return None
+
+        with config_path.open("r", encoding="utf-8") as file:
+            config = yaml.safe_load(file)
+
+        logger.info("Loaded custom sweep config from %s", config_path)
+        return config
+
+    def _build_sweep_config(self) -> dict[str, Any]:
+        """Build sweep configuration for selected model type."""
+        custom = self._load_custom_random_forest_config()
+        if custom is not None:
+            return custom
+        return ModelFactory.build_default_sweep_config(self.config.best_model_type)
+
+    def _track_run_result(
+        self,
+        run: wandb.sdk.wandb_run.Run,
+        hyperparameters: dict[str, Any],
+        metrics: dict[str, float],
+    ) -> None:
+        """Store run summary to select best run without external API dependency."""
+        self.run_summaries.append(
+            SweepRunSummary(
+                run_id=run.id,
+                run_name=run.name,
+                entity=run.entity,
+                hyperparameters=hyperparameters,
+                metrics=metrics,
+            )
         )
 
-        # Evaluate model
-        metrics = evaluate_model(
-            model,
-            _data_cache["X_test"],
-            _data_cache["y_test"]
+    def _train_single_run(self) -> None:
+        """Training callback executed by W&B agent for each hyperparameter set."""
+        run = wandb.init()
+        if run is None:
+            raise RuntimeError("W&B run initialization failed")
+
+        try:
+            raw_params = dict(wandb.config)
+            hyperparameters = ModelFactory.sanitize_params(
+                model_type=self.config.best_model_type,
+                raw_params=raw_params,
+                random_state=self.config.random_state,
+            )
+
+            model = train_model(
+                x_train=self.x_train,
+                y_train=self.y_train,
+                model_type=self.config.best_model_type,
+                params=hyperparameters,
+            )
+
+            metrics = evaluate_model(model=model, x_test=self.x_test, y_test=self.y_test)
+            feature_importances = extract_feature_importances(model, self.feature_names)
+
+            wandb.log(
+                {
+                    **hyperparameters,
+                    **metrics,
+                    **{
+                        f"feature_importance_{name}": value
+                        for name, value in list(feature_importances.items())[:10]
+                    },
+                }
+            )
+
+            self._track_run_result(run=run, hyperparameters=hyperparameters, metrics=metrics)
+
+            logger.info(
+                "Run %s completed | %s=%.4f",
+                run.name,
+                "wmape",
+                metrics.get("wmape", float("nan")),
+            )
+
+        except Exception as error:
+            logger.exception("Sweep run failed: %s", error)
+            wandb.log({"error": str(error), "mape": 999.9, "wmape": 999.9})
+            raise
+        finally:
+            run.finish()
+
+    @staticmethod
+    def _metric_sort_value(summary: SweepRunSummary, metric_name: str, goal: str) -> float:
+        """Return a sortable value even when metric is missing."""
+        value = summary.metrics.get(metric_name)
+        if value is not None:
+            return value
+
+        if goal == "maximize":
+            return float("-inf")
+        return float("inf")
+
+    def _select_best_run(self, metric_name: str, goal: str) -> SweepRunSummary:
+        """Select best run from in-memory run summaries."""
+        if not self.run_summaries:
+            raise RuntimeError("No successful sweep runs were recorded")
+
+        if goal == "maximize":
+            return max(
+                self.run_summaries,
+                key=lambda summary: self._metric_sort_value(summary, metric_name, goal),
+            )
+
+        return min(
+            self.run_summaries,
+            key=lambda summary: self._metric_sort_value(summary, metric_name, goal),
         )
 
-        # Log feature importances to W&B
-        from utils import log_feature_importances
-        feature_importances = log_feature_importances(
-            model,
-            _data_cache["feature_names"]
+    def _build_sweep_url(self, sweep_id: str, entity: str | None) -> str:
+        """Build human-readable sweep dashboard URL."""
+        owner = entity or os.getenv("WANDB_ENTITY")
+        if owner:
+            return f"https://wandb.ai/{owner}/{self.config.wandb_project}/sweeps/{sweep_id}"
+        return f"https://wandb.ai/{self.config.wandb_project}/sweeps/{sweep_id}"
+
+    def _persist_best_params(self, sweep_id: str, best_run: SweepRunSummary) -> Path:
+        """Validate and persist best sweep parameters to YAML output."""
+        required_keys = ModelFactory.required_param_keys(self.config.best_model_type)
+        missing = sorted(required_keys - set(best_run.hyperparameters.keys()))
+        if missing:
+            raise ValueError(
+                "Missing required hyperparameters in best run: "
+                f"{missing} for model {self.config.best_model_type.value}"
+            )
+
+        result = SweepBestParams(
+            sweep_id=sweep_id,
+            best_run_id=best_run.run_id,
+            best_run_name=best_run.run_name,
+            model_type=self.config.best_model_type,
+            hyperparameters=best_run.hyperparameters,
+            metrics=best_run.metrics,
+            sweep_url=self._build_sweep_url(sweep_id=sweep_id, entity=best_run.entity),
         )
 
-        # Log metrics and feature importances to W&B
-        wandb.log({
-            **params,
-            **metrics,
-            **{f"feature_importance_{k}": v for k, v in list(feature_importances.items())[:10]}
-        })
+        output_path = Path(__file__).resolve().parent / "best_params.yaml"
+        with output_path.open("w", encoding="utf-8") as file:
+            yaml.safe_dump(result.model_dump(mode="json"), file, sort_keys=False)
 
-        logger.info(f" Run completed: MAPE={metrics['mape']:.2f}% | "
-                   f"SMAPE={metrics['smape']:.2f}% | wMAPE={metrics['wmape']:.2f}%")
+        logger.info("Best sweep parameters saved to %s", output_path)
+        return output_path
 
-    except Exception as e:
-        logger.error(f" Run failed: {str(e)}")
-        # Log failure with high error score
-        wandb.log({
-            "error": str(e),
-            "mape": 999.9,
-            "smape": 999.9,
-            "wmape": 999.9
-        })
-        raise
+    def run(self) -> tuple[str, Path]:
+        """Execute the complete Bayesian sweep workflow."""
+        logger.info("=" * 70)
+        logger.info("STEP 6: HYPERPARAMETER SWEEP")
+        logger.info("=" * 70)
+        logger.info("Model selected for tuning: %s", self.config.best_model_type.value)
+        logger.info("Sweep runs: %s", self.config.sweep_count)
 
-    finally:
-        run.finish()
+        self._load_data_once()
+        sweep_config = self._build_sweep_config()
+
+        metric_name = sweep_config.get("metric", {}).get("name", "wmape")
+        goal = sweep_config.get("metric", {}).get("goal", "minimize")
+
+        sweep_id = wandb.sweep(sweep=sweep_config, project=self.config.wandb_project)
+        logger.info("W&B sweep created: %s", sweep_id)
+
+        wandb.agent(
+            sweep_id,
+            function=self._train_single_run,
+            count=self.config.sweep_count,
+            project=self.config.wandb_project,
+        )
+
+        best_run = self._select_best_run(metric_name=metric_name, goal=goal)
+        output_path = self._persist_best_params(sweep_id=sweep_id, best_run=best_run)
+
+        logger.info("Best run: %s (%s)", best_run.run_name, best_run.run_id)
+        logger.info("Primary metric (%s): %.4f", metric_name, best_run.metrics[metric_name])
+
+        return sweep_id, output_path
 
 
-def main():
-    """
-    Main function to initialize and run the W&B Sweep.
-    """
-    parser = argparse.ArgumentParser(description="W&B Sweep for Random Forest Optimization")
+def parse_args() -> SweepExecutionConfig:
+    """Parse and validate CLI inputs."""
+    parser = argparse.ArgumentParser(description="W&B Bayesian Sweep for model fine-tuning")
 
     parser.add_argument("--train_artifact_name", type=str, required=True)
     parser.add_argument("--test_artifact_name", type=str, required=True)
@@ -126,160 +265,21 @@ def main():
     parser.add_argument("--gcs_test_path", type=str, required=True)
     parser.add_argument("--bucket_name", type=str, required=True)
     parser.add_argument("--wandb_project", type=str, required=True)
+    parser.add_argument("--best_model_type", type=str, default="RandomForest")
     parser.add_argument("--target_column", type=str, default="median_house_value")
     parser.add_argument("--sweep_count", type=int, default=5)
     parser.add_argument("--sweep_config", type=str, default="sweep_config.yaml")
+    parser.add_argument("--random_state", type=int, default=42)
 
-    args = parser.parse_args()
+    arguments = parser.parse_args()
+    return SweepExecutionConfig(**vars(arguments))
 
-    logger.info("=" * 70)
-    logger.info("W&B SWEEP - HYPERPARAMETER OPTIMIZATION")
-    logger.info("=" * 70)
-    logger.info(f"Project: {args.wandb_project}")
-    logger.info(f"Training data: gs://{args.bucket_name}/{args.gcs_train_path}")
-    logger.info(f"Test data: gs://{args.bucket_name}/{args.gcs_test_path}")
-    logger.info(f"Target: {args.target_column}")
-    logger.info(f"Sweep runs: {args.sweep_count}")
 
-    # Load data ONCE into module-level cache (shared across all sweep runs)
-    logger.info("\nLoading training data...")
-    train_df = download_data_from_gcs(args.bucket_name, args.gcs_train_path)
-    X_train, y_train = prepare_data(train_df, args.target_column)
-
-    logger.info("Loading test data...")
-    test_df = download_data_from_gcs(args.bucket_name, args.gcs_test_path)
-    X_test, y_test = prepare_data(test_df, args.target_column)
-
-    # Store in module-level cache
-    _data_cache["X_train"] = X_train
-    _data_cache["X_test"] = X_test
-    _data_cache["y_train"] = y_train
-    _data_cache["y_test"] = y_test
-    _data_cache["feature_names"] = X_train.columns.tolist()
-
-    logger.info(f"\n Data loaded:")
-    logger.info(f"  Train: {X_train.shape}")
-    logger.info(f"  Test: {X_test.shape}")
-    logger.info(f"  Features: {len(_data_cache['feature_names'])}")
-
-    # Load sweep configuration
-    sweep_config_path = Path(__file__).parent / args.sweep_config
-
-    if not sweep_config_path.exists():
-        raise FileNotFoundError(f"Sweep config not found: {sweep_config_path}")
-
-    with open(sweep_config_path, 'r') as f:
-        sweep_config = yaml.safe_load(f)
-
-    logger.info(f"\nSweep configuration:")
-    logger.info(f"  Method: {sweep_config['method']}")
-    logger.info(f"  Metric: {sweep_config['metric']['name']} ({sweep_config['metric']['goal']})")
-
-    # Initialize sweep
-    logger.info("\nInitializing W&B Sweep...")
-    sweep_id = wandb.sweep(
-        sweep=sweep_config,
-        project=args.wandb_project
-    )
-
-    logger.info(f"\n Sweep created!")
-    logger.info(f"  Sweep ID: {sweep_id}")
-    logger.info(f"  View at: https://wandb.ai/{os.getenv('WANDB_ENTITY', 'your-entity')}/{args.wandb_project}/sweeps/{sweep_id}")
-
-    # Run sweep agent
-    logger.info(f"\n Starting sweep agent ({args.sweep_count} runs)...")
-    logger.info("=" * 70)
-
-    wandb.agent(
-        sweep_id,
-        function=train,
-        count=args.sweep_count,
-        project=args.wandb_project
-    )
-
-    logger.info("\n" + "=" * 70)
-    logger.info(" SWEEP COMPLETED")
-    logger.info("=" * 70)
-
-    # Get best run from sweep
-    try:
-        api = wandb.Api()
-        sweep = api.sweep(f"{os.getenv('WANDB_ENTITY', '')}/{args.wandb_project}/{sweep_id}")
-        best_run = sweep.best_run()
-
-        if best_run:
-            logger.info("\n" + "=" * 70)
-            logger.info(" BEST HYPERPARAMETERS FOUND")
-            logger.info("=" * 70)
-            logger.info(f"Best run: {best_run.name} ({best_run.id})")
-            logger.info(f"\nPerformance Metrics:")
-            logger.info(f"  MAE: {best_run.summary.get('mae', 'N/A'):.2f}")
-            logger.info(f"  RMSE: {best_run.summary.get('rmse', 'N/A'):.2f}")
-            logger.info(f"  R²: {best_run.summary.get('r2', 'N/A'):.4f}")
-            logger.info(f"  MAPE: {best_run.summary.get('mape', 'N/A'):.2f}%")
-            logger.info(f"  SMAPE: {best_run.summary.get('smape', 'N/A'):.2f}%")
-            logger.info(f"  wMAPE: {best_run.summary.get('wmape', 'N/A'):.2f}%")
-            logger.info(f"  Within 10%: {best_run.summary.get('within_10pct', 'N/A'):.1f}%")
-            logger.info(f"\nBest hyperparameters:")
-            logger.info(f"  n_estimators: {best_run.config.get('n_estimators')}")
-            logger.info(f"  max_depth: {best_run.config.get('max_depth')}")
-            logger.info(f"  min_samples_split: {best_run.config.get('min_samples_split')}")
-            logger.info(f"  min_samples_leaf: {best_run.config.get('min_samples_leaf')}")
-            logger.info(f"  max_features: {best_run.config.get('max_features')}")
-
-            # Save best parameters to file (NO DEFAULTS - all must come from sweep)
-            best_params_path = Path(__file__).parent / "best_params.yaml"
-
-            # Validate that all required hyperparameters are present
-            required_params = ['n_estimators', 'max_depth', 'min_samples_split', 'min_samples_leaf', 'max_features']
-            missing_params = [p for p in required_params if p not in best_run.config]
-            if missing_params:
-                raise ValueError(
-                    f"Missing required hyperparameters from sweep results: {missing_params}. "
-                    "All hyperparameters must be determined by the sweep, no defaults allowed."
-                )
-
-            best_params = {
-                "sweep_id": sweep_id,
-                "best_run_id": best_run.id,
-                "best_run_name": best_run.name,
-                "hyperparameters": {
-                    "n_estimators": int(best_run.config['n_estimators']),
-                    "max_depth": int(best_run.config['max_depth']) if best_run.config['max_depth'] else None,
-                    "min_samples_split": int(best_run.config['min_samples_split']),
-                    "min_samples_leaf": int(best_run.config['min_samples_leaf']),
-                    "max_features": best_run.config['max_features'],
-                    "random_state": 42  # Fixed for reproducibility, not a hyperparameter to optimize
-                },
-                "metrics": {
-                    # Primary metrics
-                    "mae": float(best_run.summary.get('mae', 0)),
-                    "rmse": float(best_run.summary.get('rmse', 0)),
-                    "r2": float(best_run.summary.get('r2', 0)),
-                    # Percentage error metrics
-                    "mape": float(best_run.summary.get('mape', 0)),
-                    "smape": float(best_run.summary.get('smape', 0)),
-                    "wmape": float(best_run.summary.get('wmape', 0)),
-                    "median_ape": float(best_run.summary.get('median_ape', 0)),
-                    # Accuracy within thresholds
-                    "within_5pct": float(best_run.summary.get('within_5pct', 0)),
-                    "within_10pct": float(best_run.summary.get('within_10pct', 0)),
-                    "within_15pct": float(best_run.summary.get('within_15pct', 0))
-                },
-                "sweep_url": f"https://wandb.ai/{os.getenv('WANDB_ENTITY', '')}/{args.wandb_project}/sweeps/{sweep_id}"
-            }
-
-            with open(best_params_path, 'w') as f:
-                yaml.dump(best_params, f, default_flow_style=False)
-
-            logger.info(f"\n Best parameters saved to: {best_params_path}")
-            logger.info("=" * 70)
-
-            return sweep_id, best_params
-
-    except Exception as e:
-        logger.error(f"Could not retrieve best run: {e}")
-        return sweep_id, None
+def main() -> None:
+    """CLI entry point for sweep step."""
+    config = parse_args()
+    workflow = BayesianSweepWorkflow(config=config)
+    workflow.run()
 
 
 if __name__ == "__main__":

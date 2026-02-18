@@ -13,14 +13,14 @@ import tarfile
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import pandas as pd
 import requests
+from config import settings
 from google.api_core import exceptions as gcp_exceptions
 from google.cloud import storage
 
-from config import settings
 from models import (
     DownloadConfig,
     DownloadResult,
@@ -37,18 +37,17 @@ try:
         sys.path.insert(0, str(utils_path))
 
     from colored_logger import setup_colored_logger
+
     logger = setup_colored_logger(__name__)
 except (ImportError, Exception):
     import logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     logger = logging.getLogger(__name__)
 
 # Constants
-VALID_EXTENSIONS: Tuple[str, ...] = ('.csv', '.parquet', '.json')
-COMPRESSED_EXTENSIONS: Tuple[str, ...] = ('.tgz', '.tar.gz')
+VALID_EXTENSIONS: Tuple[str, ...] = (".csv", ".parquet", ".json")
+COMPRESSED_EXTENSIONS: Tuple[str, ...] = (".tgz", ".tar.gz")
 MB_SIZE: int = 1024 * 1024
 PROGRESS_LOG_INTERVAL: int = MB_SIZE
 
@@ -89,24 +88,22 @@ class DataDownloader:
         try:
             # If GOOGLE_APPLICATION_CREDENTIALS is empty, unset it to use ADC
             import os
-            if os.getenv('GOOGLE_APPLICATION_CREDENTIALS') == '':
-                os.environ.pop('GOOGLE_APPLICATION_CREDENTIALS', None)
+
+            if os.getenv("GOOGLE_APPLICATION_CREDENTIALS") == "":
+                os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 
             self.storage_client = storage.Client()
             self.bucket = self.storage_client.bucket(self.config.bucket_name)
 
             if not self.bucket.exists():
-                raise ValueError(
-                    f"Bucket {self.config.bucket_name} does not exist"
-                )
+                raise ValueError(f"Bucket {self.config.bucket_name} does not exist")
 
             logger.info(f"Connected to GCS: gs://{self.config.bucket_name}")
 
         except Exception as e:
             logger.error(f"Error connecting to GCS: {e}")
             raise RuntimeError(
-                "GCS is required for this component. "
-                "Check your configuration and credentials."
+                "GCS is required for this component. Check your configuration and credentials."
             ) from e
 
     def download_to_memory(self) -> bytes:
@@ -126,29 +123,21 @@ class DataDownloader:
         for attempt in range(settings.MAX_RETRIES):
             try:
                 response = requests.get(
-                    str(self.config.file_url),
-                    stream=True,
-                    timeout=settings.TIMEOUT
+                    str(self.config.file_url), stream=True, timeout=settings.TIMEOUT
                 )
                 response.raise_for_status()
 
                 content = self._download_chunks(response)
 
-                logger.info(
-                    f"Downloaded to memory: {len(content) / MB_SIZE:.2f} MB"
-                )
+                logger.info(f"Downloaded to memory: {len(content) / MB_SIZE:.2f} MB")
                 return content
 
             except requests.RequestException as e:
                 last_exception = e
                 if attempt < settings.MAX_RETRIES - 1:
-                    logger.warning(
-                        f"Attempt {attempt + 1} failed: {e}. Retrying..."
-                    )
+                    logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying...")
                 else:
-                    logger.error(
-                        f"Download failed after {settings.MAX_RETRIES} attempts"
-                    )
+                    logger.error(f"Download failed after {settings.MAX_RETRIES} attempts")
 
         # If we get here, all retries failed
         if last_exception:
@@ -166,7 +155,7 @@ class DataDownloader:
             Downloaded content as bytes
         """
         content = b""
-        total_size = int(response.headers.get('content-length', 0))
+        total_size = int(response.headers.get("content-length", 0))
         downloaded = 0
 
         for chunk in response.iter_content(chunk_size=settings.CHUNK_SIZE):
@@ -176,15 +165,8 @@ class DataDownloader:
 
                 # Log progress every 1MB
                 if downloaded % PROGRESS_LOG_INTERVAL == 0:
-                    progress = (
-                        (downloaded / total_size * 100)
-                        if total_size > 0
-                        else 0
-                    )
-                    logger.info(
-                        f"  Progress: {downloaded / MB_SIZE:.1f} MB "
-                        f"({progress:.1f}%)"
-                    )
+                    progress = (downloaded / total_size * 100) if total_size > 0 else 0
+                    logger.info(f"  Progress: {downloaded / MB_SIZE:.1f} MB ({progress:.1f}%)")
 
         return content
 
@@ -238,10 +220,7 @@ class DataDownloader:
     @staticmethod
     def _write_temp_file(content: bytes) -> str:
         """Write content to temporary file."""
-        with tempfile.NamedTemporaryFile(
-            suffix='.tgz',
-            delete=False
-        ) as tmp_file:
+        with tempfile.NamedTemporaryFile(suffix=".tgz", delete=False) as tmp_file:
             tmp_file.write(content)
             tmp_file.flush()
             return tmp_file.name
@@ -259,7 +238,7 @@ class DataDownloader:
         Raises:
             FileNotFoundError: If no valid file found
         """
-        with tarfile.open(tar_path, 'r:gz') as tar:
+        with tarfile.open(tar_path, "r:gz") as tar:
             members = tar.getmembers()
 
             for member in members:
@@ -268,14 +247,12 @@ class DataDownloader:
                     if extracted_file:
                         extracted_content = extracted_file.read()
                         logger.info(
-                            f"Extracted: {member.name} "
-                            f"({len(extracted_content) / MB_SIZE:.2f} MB)"
+                            f"Extracted: {member.name} ({len(extracted_content) / MB_SIZE:.2f} MB)"
                         )
                         return extracted_content
 
             raise FileNotFoundError(
-                f"No file found with valid extensions {VALID_EXTENSIONS} "
-                f"in the tarball"
+                f"No file found with valid extensions {VALID_EXTENSIONS} in the tarball"
             )
 
     @staticmethod
@@ -303,10 +280,7 @@ class DataDownloader:
         """
         file_size_mb = round(len(content) / MB_SIZE, 2)
 
-        stats_dict: Dict[str, any] = {
-            'file_size_mb': file_size_mb,
-            'downloaded_at': datetime.now()
-        }
+        stats_dict: Dict[str, any] = {"file_size_mb": file_size_mb, "downloaded_at": datetime.now()}
 
         # Get data stats (works for CSV or Parquet)
         data_stats = self._get_data_stats(content)
@@ -326,19 +300,16 @@ class DataDownloader:
             Dictionary with data statistics or None if failed
         """
         try:
-            # Try to load as DataFrame (content is always CSV from source)
-            # TEST MODE: Only use 100 rows for quick validation
-            df = pd.read_csv(io.BytesIO(content), nrows=100)
+            # Source content is CSV before optional Parquet conversion.
+            df = pd.read_csv(io.BytesIO(content))
 
-            logger.info(
-                f"Data Stats (TEST MODE - 100 rows): {len(df):,} rows, {len(df.columns)} columns"
-            )
+            logger.info(f"Data Stats: {len(df):,} rows, {len(df.columns)} columns")
 
             return {
-                'n_rows': len(df),
-                'n_columns': len(df.columns),
-                'columns': list(df.columns),
-                'missing_values': df.isnull().sum().to_dict()
+                "n_rows": len(df),
+                "n_columns": len(df.columns),
+                "columns": list(df.columns),
+                "missing_values": df.isnull().sum().to_dict(),
             }
 
         except Exception as e:
@@ -357,13 +328,12 @@ class DataDownloader:
         """
         logger.info("Converting CSV to Parquet format...")
 
-        # Read CSV
-        # TEST MODE: Only use 100 rows for quick validation
-        df = pd.read_csv(io.BytesIO(csv_content), nrows=100)
+        # Read full CSV and persist full dataset in Parquet.
+        df = pd.read_csv(io.BytesIO(csv_content))
 
         # Convert to Parquet
         buffer = io.BytesIO()
-        df.to_parquet(buffer, index=False, engine='pyarrow')
+        df.to_parquet(buffer, index=False, engine="pyarrow")
         buffer.seek(0)
 
         parquet_content = buffer.getvalue()
@@ -392,12 +362,10 @@ class DataDownloader:
 
         # Convert to Parquet if needed
         upload_content = content
-        if gcs_path.endswith('.parquet'):
+        if gcs_path.endswith(".parquet"):
             upload_content = self._convert_to_parquet(content)
 
-        logger.info(
-            f"Uploading to GCS: gs://{self.config.bucket_name}/{gcs_path}"
-        )
+        logger.info(f"Uploading to GCS: gs://{self.config.bucket_name}/{gcs_path}")
 
         try:
             blob = self.bucket.blob(gcs_path)
@@ -425,7 +393,7 @@ class DataDownloader:
             "component": "01_download_data",
             "original_url": str(self.config.file_url),
             "storage_type": "gcs_only",
-            "file_size_mb": str(round(len(content) / MB_SIZE, 2))
+            "file_size_mb": str(round(len(content) / MB_SIZE, 2)),
         }
 
     def run(self) -> DownloadResult:
@@ -451,10 +419,7 @@ class DataDownloader:
             logger.info("Data stored ONLY in GCS (no local copy)")
 
             return DownloadResult(
-                gcs_uri=gcs_uri,
-                stats=stats,
-                artifact_name=self.config.artifact_name,
-                success=True
+                gcs_uri=gcs_uri, stats=stats, artifact_name=self.config.artifact_name, success=True
             )
 
         except Exception as e:
@@ -464,25 +429,17 @@ class DataDownloader:
 
     def _create_error_result(self, error: Exception) -> DownloadResult:
         """Create error result when download fails."""
-        error_uri = (
-            f"gs://{self.config.bucket_name}/{self.config.gcs_output_path}"
-        )
+        error_uri = f"gs://{self.config.bucket_name}/{self.config.gcs_output_path}"
 
         return DownloadResult(
             gcs_uri=error_uri,
-            stats=FileStats(
-                file_size_mb=0.0,
-                downloaded_at=datetime.now()
-            ),
+            stats=FileStats(file_size_mb=0.0, downloaded_at=datetime.now()),
             artifact_name=self.config.artifact_name,
             success=False,
-            error_message=str(error)
+            error_message=str(error),
         )
 
-    def create_wandb_metadata(
-        self,
-        result: DownloadResult
-    ) -> WandBArtifactMetadata:
+    def create_wandb_metadata(self, result: DownloadResult) -> WandBArtifactMetadata:
         """
         Create metadata for W&B artifact.
 
@@ -499,5 +456,5 @@ class DataDownloader:
             file_size_mb=result.stats.file_size_mb,
             n_rows=result.stats.n_rows,
             n_columns=result.stats.n_columns,
-            downloaded_at=result.stats.downloaded_at.isoformat()
+            downloaded_at=result.stats.downloaded_at.isoformat(),
         )

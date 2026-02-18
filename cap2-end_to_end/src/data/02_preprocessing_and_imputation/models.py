@@ -5,8 +5,9 @@ Date: 2025-11-28
 """
 
 from datetime import datetime
-from typing import Optional, Dict, List, Literal
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import Dict, List, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PreprocessingConfig(BaseModel):
@@ -16,72 +17,52 @@ class PreprocessingConfig(BaseModel):
 
     # Input data
     input_artifact_name: str = Field(
-        ...,
-        min_length=1,
-        description="Name of the input artifact from W&B"
+        ..., min_length=1, description="Name of the input artifact from W&B"
     )
 
     gcs_input_path: str = Field(
-        ...,
-        min_length=1,
-        description="GCS path to input data (without gs://bucket/)"
+        ..., min_length=1, description="GCS path to input data (without gs://bucket/)"
     )
 
     # Output data
     gcs_output_path: str = Field(
         default="data/02-processed/housing_processed.csv",
-        description="Path in GCS for processed data"
+        description="Path in GCS for processed data",
     )
 
     artifact_name: str = Field(
-        default="housing_data_processed",
-        description="Name of the output artifact in W&B"
+        default="housing_data_processed", description="Name of the output artifact in W&B"
     )
 
-    artifact_type: str = Field(
-        default="processed_data",
-        description="Type of artifact"
-    )
+    artifact_type: str = Field(default="processed_data", description="Type of artifact")
 
-    artifact_description: str = Field(
-        default="",
-        description="Description of the artifact"
-    )
+    artifact_description: str = Field(default="", description="Description of the artifact")
 
     # Bucket info
-    bucket_name: str = Field(
-        ...,
-        min_length=3,
-        max_length=63,
-        description="Name of the GCS bucket"
-    )
+    bucket_name: str = Field(..., min_length=3, max_length=63, description="Name of the GCS bucket")
 
     # W&B config
     wandb_project: str = Field(
-        default="housing-mlops-gcp",
-        description="Name of the project in W&B"
+        default="housing-mlops-gcp", description="Name of the project in W&B"
     )
 
     # Preprocessing options
     imputation_strategy: Literal["mean", "median", "mode", "drop", "auto"] = Field(
         default="auto",
-        description="Strategy for handling missing values. 'auto' compares all methods and selects the best one."
+        description="Strategy for handling missing values. 'auto' compares all methods and selects the best one.",
     )
 
-    create_features: bool = Field(
-        default=True,
-        description="Whether to create engineered features"
-    )
+    create_features: bool = Field(default=True, description="Whether to create engineered features")
 
-    @field_validator('bucket_name')
+    @field_validator("bucket_name")
     @classmethod
     def validate_bucket_name(cls, v: str) -> str:
         """Validates that the bucket name is valid for GCS."""
-        if not v.replace('-', '').replace('_', '').isalnum():
+        if not v.replace("-", "").replace("_", "").isalnum():
             raise ValueError(
                 "Bucket name must contain only letters, numbers, hyphens, and underscores"
             )
-        if v.startswith('-') or v.endswith('-'):
+        if v.startswith("-") or v.endswith("-"):
             raise ValueError("Bucket name must not start or end with a hyphen")
         return v.lower()
 
@@ -108,10 +89,7 @@ class PreprocessingStats(BaseModel):
     input_size_mb: float = Field(..., ge=0)
     output_size_mb: float = Field(..., ge=0)
 
-    processed_at: datetime = Field(
-        default_factory=datetime.now,
-        description="Processing timestamp"
-    )
+    processed_at: datetime = Field(default_factory=datetime.now, description="Processing timestamp")
 
     @property
     def rows_dropped(self) -> int:

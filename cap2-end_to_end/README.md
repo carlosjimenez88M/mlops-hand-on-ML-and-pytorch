@@ -17,14 +17,17 @@ git clone https://github.com/carlosjimenez88M/mlops-hand-on-ML-and-pytorch.git
 cd mlops-hand-on-ML-and-pytorch/cap2-end_to_end
 
 # Install dependencies
-uv pip install -e .
+uv sync --extra dev --extra api --extra streamlit
 
 # Configure environment
 cp .env.example .env
 # Edit .env with your credentials
 
 # Run complete pipeline
-python main.py
+uv run python main.py
+
+# Run through MLflow entrypoint
+uv run mlflow run . --env-manager local
 ```
 
 ---
@@ -120,13 +123,13 @@ Auto-generated after training with:
 ### Run Complete Pipeline
 ```bash
 # All 7 steps with 5 sweep runs
-python main.py
+uv run python main.py
 
 # Specific steps only
-python main.py main.execute_steps='["06_sweep","07_registration"]'
+uv run python main.py main.execute_steps='["06_sweep","07_registration"]'
 
 # More sweep runs for better optimization
-python main.py main.execute_steps='["06_sweep"]' sweep.sweep_count=20
+uv run python main.py main.execute_steps='["06_sweep"]' sweep.sweep_count=20
 ```
 
 ### Use Trained Model
@@ -149,7 +152,7 @@ predictions = model.predict(X_new)
 
 ```bash
 cd api
-python main.py
+uv run --extra api python main.py
 
 # Test prediction
 curl -X POST "http://localhost:8000/predict" \
@@ -330,20 +333,20 @@ print(f"Stage: {model.latest_versions[0].current_stage}")
 ### Run Tests
 ```bash
 # Install test dependencies
-uv pip install pytest pytest-cov
+uv sync --extra dev --extra api
 
 # Run all tests with coverage
-pytest tests/ -v --cov=src --cov-report=term-missing
+uv run pytest tests/ -v --cov=src --cov-report=term-missing
 
-# Run specific test module
-pytest tests/test_preprocessor.py -v
+# Run API tests
+uv run --extra api pytest api/tests/ -v
 ```
 
 ### CI/CD
 GitHub Actions workflows in `.github/workflows/`:
-- `mlops-pipeline-manual.yml` - Manual 7-step pipeline execution
-- Automatic testing on pull requests
-- Model validation and deployment
+- `mlops-complete-pipeline.yml` - Quality gate + pipeline manual 01-07 + promotion opcional
+- `mlops-model-monitoring.yml` - Drift monitoring semanal/manual (PSI)
+- Actions modernas (`checkout@v6`, `setup-python@v6`, `setup-uv@v7`, `auth@v3`)
 
 ---
 
@@ -387,6 +390,8 @@ GitHub Actions workflows in `.github/workflows/`:
 - `README.md` (this file) - Complete project documentation
 - `config.yaml` - Pipeline configuration
 - `configs/model_config.yaml` - Auto-generated model metadata
+- `scripts/promote_model.py` - Guarded MLflow stage promotion (Staging -> Production)
+- `scripts/monitor_drift.py` - PSI-based drift report from GCS datasets
 - `api/README.md` - API usage guide
 - `.env.example` - Environment template
 
@@ -402,18 +407,18 @@ GitHub Actions workflows in `.github/workflows/`:
 
 ### Development Setup
 ```bash
-# Install in development mode
-uv pip install -e ".[dev]"
+# Install dependencies (dev extras)
+uv sync --extra dev --extra api
 
 # Install pre-commit hooks (recommended)
 pre-commit install
 
-# Run linting
-flake8 src/
-black src/
+# Run lint + format check
+uv run ruff check src tests api streamlit_app
+uv run ruff format --check src tests api streamlit_app
 
 # Run type checking
-mypy src/
+uv run mypy src/
 ```
 
 ### Branch Strategy

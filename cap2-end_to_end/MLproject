@@ -1,0 +1,7 @@
+name: housing_mlops_pipeline
+
+entry_points:
+  main:
+    parameters:
+      hydra_overrides: {type: string, default: ""}
+    command: "uv run python main.py {hydra_overrides}"

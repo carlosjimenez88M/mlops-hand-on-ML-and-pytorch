@@ -1,27 +1,39 @@
 """
 FastAPI application for housing price prediction.
 """
+
+import logging
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import logging
-import sys
 
 from app.core.config import Settings
 from app.core.model_loader import ModelLoader
 from app.core.wandb_logger import WandBLogger
-from app.routers import predict
 from app.models.schemas import HealthResponse
+from app.routers import predict
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+try:
+    project_root = Path(__file__).resolve().parents[2]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
 
-logger = logging.getLogger(__name__)
+    from src.utils.colored_logger import setup_colored_logger
+
+    setup_colored_logger()
+    logger = logging.getLogger(__name__)
+except (ImportError, Exception):
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+    logger = logging.getLogger(__name__)
 
 # Initialize settings
 settings = Settings()
@@ -36,11 +48,19 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up API...")
 
     # Initialize W&B logger
-    wandb_logger = WandBLogger(
-        project=settings.WANDB_PROJECT,
-        enabled=True
-    )
+    wandb_logger = WandBLogger(project=settings.WANDB_PROJECT, enabled=True)
     predict.set_wandb_logger(wandb_logger)
+
+    # Respect pre-injected model loader (useful for tests with mocks).
+    preloaded_model_loader = getattr(app.state, "model_loader", None)
+    if preloaded_model_loader is not None and getattr(preloaded_model_loader, "is_loaded", False):
+        logger.info("Using preloaded model loader from app state")
+        predict.set_model_loader(preloaded_model_loader)
+        app.state.wandb_logger = wandb_logger
+        yield
+        logger.info("Shutting down API...")
+        wandb_logger.close()
+        return
 
     # Initialize model loader
     model_loader = ModelLoader(
@@ -49,7 +69,7 @@ async def lifespan(app: FastAPI):
         gcs_model_path=settings.GCS_MODEL_PATH if settings.GCS_BUCKET else None,
         mlflow_model_name=settings.MLFLOW_MODEL_NAME if settings.MLFLOW_MODEL_NAME else None,
         mlflow_model_stage=settings.MLFLOW_MODEL_STAGE,
-        mlflow_tracking_uri=settings.MLFLOW_TRACKING_URI if settings.MLFLOW_TRACKING_URI else None
+        mlflow_tracking_uri=settings.MLFLOW_TRACKING_URI if settings.MLFLOW_TRACKING_URI else None,
     )
 
     # Load model
@@ -81,7 +101,7 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="API for predicting California housing prices",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Configure CORS - Restricted for production security
@@ -110,7 +130,7 @@ app.include_router(predict.router)
     response_model=dict,
     tags=["root"],
     summary="Root endpoint",
-    description="Returns basic API information"
+    description="Returns basic API information",
 )
 async def root() -> dict:
     """Root endpoint providing basic API information."""
@@ -119,7 +139,7 @@ async def root() -> dict:
         "version": settings.VERSION,
         "description": "Housing Price Prediction API",
         "docs_url": "/docs",
-        "health_url": "/health"
+        "health_url": "/health",
     }
 
 
@@ -128,7 +148,7 @@ async def root() -> dict:
     response_model=HealthResponse,
     tags=["health"],
     summary="Health check",
-    description="Check API health and model status"
+    description="Check API health and model status",
 )
 async def health_check() -> HealthResponse:
     """
@@ -138,13 +158,13 @@ async def health_check() -> HealthResponse:
         HealthResponse with service status
     """
     model_loaded = False
-    if hasattr(app.state, 'model_loader'):
+    if hasattr(app.state, "model_loader"):
         model_loaded = app.state.model_loader.is_loaded
 
     return HealthResponse(
         status="healthy" if model_loaded else "degraded",
         model_loaded=model_loaded,
-        version=settings.VERSION
+        version=settings.VERSION,
     )
 
 
@@ -154,18 +174,11 @@ async def global_exception_handler(_request, exc):
     logger.error(f"Unhandled error: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={
-            "error": "Internal server error",
-            "detail": "An unexpected error occurred"
-        }
+        content={"error": "Internal server error", "detail": "An unexpected error occurred"},
     )
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8080,
-        reload=True
-    )
+
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8080, reload=True)

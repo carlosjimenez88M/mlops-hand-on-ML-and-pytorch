@@ -1,4 +1,4 @@
-.PHONY: help install install-uv sync run-tests test-cov run-pipeline test-config lint format clean docker-build docker-run api-install api-local api-test api-test-cov api-build streamlit-install streamlit-local streamlit-test streamlit-build compose-up compose-down compose-logs
+.PHONY: help install install-uv sync run-tests test-cov run-pipeline run-mlflow run-promote monitor-drift test-config lint format clean docker-build docker-run api-install api-local api-test api-test-cov api-build streamlit-install streamlit-local streamlit-test streamlit-build compose-up compose-down compose-logs
 
 # Default target
 help:
@@ -12,7 +12,10 @@ help:
 	@echo ""
 	@echo "🚀 Pipeline Execution:"
 	@echo "  make run-pipeline    - Run complete MLOps pipeline (Steps 1-5)"
+	@echo "  make run-mlflow      - Run pipeline through MLflow entrypoint"
 	@echo "  make run-sweep       - Run W&B Sweep for hyperparameter optimization"
+	@echo "  make run-promote     - Promote latest Staging model to Production"
+	@echo "  make monitor-drift   - Run PSI drift monitoring report from GCS"
 	@echo "  make test-config     - Test pipeline configuration"
 	@echo ""
 	@echo "🧪 Testing:"
@@ -52,60 +55,87 @@ install-uv:
 
 # Install all dependencies
 install: install-uv
-	@echo "Creating virtual environment and installing dependencies with uv..."
-	@test -d .venv || uv venv .venv
-	@uv pip install -e .
+	@echo "Installing project dependencies with uv (pyproject.toml)..."
+	@uv sync --extra dev
 
 # Sync dependencies (faster than install)
 sync: install-uv
 	@echo "Syncing dependencies with uv..."
-	uv pip sync
+	uv sync --extra dev
 
 # Run unit tests
 run-tests:
 	@echo "Running unit tests..."
-	@.venv/bin/pytest tests/ -v
+	@uv run pytest tests/ -v
 
 # Run tests with coverage
 test-cov:
 	@echo "Running tests with coverage..."
-	@.venv/bin/pytest tests/ -v --cov=src --cov-report=html --cov-report=term-missing
+	@uv run pytest tests/ -v --cov=src --cov-report=html --cov-report=term-missing
 
 # Run complete pipeline
 run-pipeline: install
 	@echo "Running complete MLOps pipeline..."
-	@.venv/bin/python main.py
+	@uv run python main.py
+
+# Run pipeline using MLflow entrypoint
+run-mlflow: install
+	@echo "Running pipeline via mlflow run (env-manager=local)..."
+	@uv run mlflow run . --env-manager local
 
 # Run only download step
 run-download: install
 	@echo "Running download step..."
-	@.venv/bin/python main.py main.execute_steps=[01_download_data]
+	@uv run python main.py main.execute_steps=[01_download_data]
 
 # Run only preprocessing step
 run-preprocessing: install
 	@echo "Running preprocessing step..."
-	@.venv/bin/python main.py main.execute_steps=[02_preprocessing_and_imputation]
+	@uv run python main.py main.execute_steps=[02_preprocessing_and_imputation]
 
 # Run W&B Sweep for hyperparameter optimization
 run-sweep: install
 	@echo "Running W&B Sweep for hyperparameter optimization..."
-	@echo "This will test multiple combinations of n_clusters and gamma"
-	@.venv/bin/python src/data/03_feature_engineering/run_sweep.py --count 20
+	@echo "This runs step 06 with Bayesian optimization on the selected base model"
+	@uv run python main.py main.execute_steps='["06_sweep"]'
+
+# Promote latest model version from Staging to Production
+run-promote: install
+	@echo "Promoting latest model from Staging to Production with guardrails..."
+	@uv run python scripts/promote_model.py \
+		--model-name housing_price_model \
+		--from-stage Staging \
+		--to-stage Production \
+		--min-r2 0.40 \
+		--max-mape 30.0 \
+		--archive-existing-production \
+		--report-path artifacts/promotion/promotion_report.json
+
+# Run data drift monitoring report (PSI)
+monitor-drift: install
+	@echo "Running PSI drift monitoring using GCS datasets..."
+	@uv run python scripts/monitor_drift.py \
+		--bucket-name "$$GCS_BUCKET_NAME" \
+		--reference-path data/04-split/train/train.parquet \
+		--current-path data/04-split/test/test.parquet \
+		--target-column median_house_value \
+		--max-psi 0.2 \
+		--report-path artifacts/monitoring/drift_report.json
 
 # Run single sweep agent (for parallel execution)
 run-sweep-agent: install
 	@echo "Running sweep agent (use SWEEP_ID environment variable)..."
-	@.venv/bin/python -c "import wandb; wandb.agent('$$SWEEP_ID', function=lambda: __import__('src.data.03_feature_engineering.run_sweep').train_with_sweep())"
+	@echo "Sweep agent is managed by step 06. Use run-sweep to launch the workflow."
 
 # Lint code
 lint:
 	@echo "Running linters..."
-	@.venv/bin/ruff check src/ tests/ || echo "Ruff not installed, skipping..."
+	@uv run ruff check src/ tests/ api/ streamlit_app/
 
 # Format code
 format:
 	@echo "Formatting code..."
-	@.venv/bin/ruff format src/ tests/ || echo "Ruff not installed, skipping..."
+	@uv run ruff format src/ tests/ api/ streamlit_app/
 
 # Clean temporary files
 clean:
@@ -179,24 +209,24 @@ compose-logs:
 # Install API dependencies
 api-install:
 	@echo "Installing API dependencies..."
-	cd api && pip install -r requirements.txt
+	uv sync --extra api
 
 # Run API locally
 api-local: api-install
 	@echo "Starting API locally on port 8080..."
 	@echo "API will be available at http://localhost:8080"
 	@echo "API docs at http://localhost:8080/docs"
-	cd api && uvicorn app.main:app --reload --port 8080
+	uv run --extra api uvicorn api.app.main:app --reload --port 8080
 
 # Test API
 api-test: api-install
 	@echo "Running API tests..."
-	cd api && pytest tests/ -v
+	uv run --extra api pytest api/tests/ -v
 
 # Test API with coverage
 api-test-cov: api-install
 	@echo "Running API tests with coverage..."
-	cd api && pytest tests/ -v --cov=app --cov-report=html --cov-report=term-missing
+	uv run --extra api pytest api/tests/ -v --cov=api/app --cov-report=html --cov-report=term-missing
 
 # ===================================================================
 # Streamlit Commands
@@ -205,14 +235,14 @@ api-test-cov: api-install
 # Install Streamlit dependencies
 streamlit-install:
 	@echo "Installing Streamlit dependencies..."
-	cd streamlit_app && pip install -r requirements.txt
+	uv sync --extra streamlit
 
 # Run Streamlit locally
 streamlit-local: streamlit-install
 	@echo "Starting Streamlit locally on port 8501..."
 	@echo "Streamlit will be available at http://localhost:8501"
 	@echo "Make sure the API is running at http://localhost:8080"
-	cd streamlit_app && API_URL=http://localhost:8080 streamlit run app.py --server.port 8501
+	API_URL=http://localhost:8080 uv run --extra streamlit streamlit run streamlit_app/app.py --server.port 8501
 
 # Build Streamlit Docker image
 streamlit-build:

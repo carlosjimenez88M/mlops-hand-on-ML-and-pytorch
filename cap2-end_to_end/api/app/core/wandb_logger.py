@@ -1,11 +1,13 @@
 """
 Weights & Biases logger for API predictions monitoring.
 """
-import os
+
 import logging
-from typing import Dict, List, Optional
-import wandb
+import os
 from datetime import datetime
+from typing import Dict, List, Optional
+
+import wandb
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +15,7 @@ logger = logging.getLogger(__name__)
 class WandBLogger:
     """Logger for tracking API predictions in Weights & Biases."""
 
-    def __init__(
-        self,
-        project: str = "housing-mlops-api",
-        enabled: bool = True
-    ):
+    def __init__(self, project: str = "housing-mlops-api", enabled: bool = True):
         """
         Initialize W&B logger.
 
@@ -37,9 +35,9 @@ class WandBLogger:
                     job_type="api-inference",
                     config={
                         "environment": os.getenv("ENVIRONMENT", "production"),
-                        "model_version": os.getenv("MODEL_VERSION", "unknown")
+                        "model_version": os.getenv("MODEL_VERSION", "unknown"),
                     },
-                    reinit=True
+                    reinit=True,
                 )
                 logger.info(f"W&B logging enabled for project: {self.project}")
             except Exception as e:
@@ -53,7 +51,7 @@ class WandBLogger:
         features: List[Dict],
         predictions: List[float],
         model_version: str,
-        response_time_ms: float
+        response_time_ms: float,
     ) -> None:
         """
         Log prediction request to W&B.
@@ -69,33 +67,36 @@ class WandBLogger:
 
         try:
             # Create summary statistics
-            wandb.log({
-                "prediction/count": len(predictions),
-                "prediction/mean": sum(predictions) / len(predictions),
-                "prediction/min": min(predictions),
-                "prediction/max": max(predictions),
-                "performance/response_time_ms": response_time_ms,
-                "model/version": model_version,
-                "timestamp": datetime.now().isoformat()
-            })
+            wandb.log(
+                {
+                    "prediction/count": len(predictions),
+                    "prediction/mean": sum(predictions) / len(predictions),
+                    "prediction/min": min(predictions),
+                    "prediction/max": max(predictions),
+                    "performance/response_time_ms": response_time_ms,
+                    "model/version": model_version,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
             # Log feature distributions (sample first 100 predictions)
             if len(features) <= 100:
                 for i, (feat, pred) in enumerate(zip(features, predictions)):
-                    wandb.log({
-                        f"features/instance_{i}/median_income": feat.get("median_income", 0),
-                        f"features/instance_{i}/housing_median_age": feat.get("housing_median_age", 0),
-                        f"predictions/instance_{i}": pred
-                    })
+                    wandb.log(
+                        {
+                            f"features/instance_{i}/median_income": feat.get("median_income", 0),
+                            f"features/instance_{i}/housing_median_age": feat.get(
+                                "housing_median_age", 0
+                            ),
+                            f"predictions/instance_{i}": pred,
+                        }
+                    )
 
         except Exception as e:
             logger.error(f"Failed to log prediction to W&B: {str(e)}")
 
     def log_error(
-        self,
-        error_type: str,
-        error_message: str,
-        features: Optional[List[Dict]] = None
+        self, error_type: str, error_message: str, features: Optional[List[Dict]] = None
     ) -> None:
         """
         Log prediction error to W&B.
@@ -113,7 +114,7 @@ class WandBLogger:
                 "error/type": error_type,
                 "error/message": error_message,
                 "error/count": 1,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
             # Optionally log feature count if provided
@@ -136,11 +137,13 @@ class WandBLogger:
             return
 
         try:
-            wandb.log({
-                "health/status": status,
-                "health/model_loaded": 1 if model_loaded else 0,
-                "timestamp": datetime.now().isoformat()
-            })
+            wandb.log(
+                {
+                    "health/status": status,
+                    "health/model_loaded": 1 if model_loaded else 0,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
         except Exception as e:
             logger.error(f"Failed to log health check to W&B: {str(e)}")
 

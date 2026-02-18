@@ -18,14 +18,14 @@ class ColoredFormatter(logging.Formatter):
 
     # ANSI color codes
     COLORS = {
-        'DEBUG': '\033[36m',      # Cyan
-        'INFO': '\033[32m',       # Green (traffic light: go)
-        'WARNING': '\033[33m',    # Yellow (traffic light: caution)
-        'ERROR': '\033[31m',      # Red (traffic light: stop)
-        'CRITICAL': '\033[1;31m'  # Bold Red (traffic light: danger)
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green (traffic light: go)
+        "WARNING": "\033[33m",  # Yellow (traffic light: caution)
+        "ERROR": "\033[31m",  # Red (traffic light: stop)
+        "CRITICAL": "\033[1;31m",  # Bold Red (traffic light: danger)
     }
 
-    RESET = '\033[0m'
+    RESET = "\033[0m"
 
     def format(self, record):
         """Format the log record with color based on level."""
@@ -41,7 +41,7 @@ class ColoredFormatter(logging.Formatter):
 def setup_colored_logger(
     name: str = None,
     level: int = logging.INFO,
-    format_string: str = "%(asctime)s - %(levelname)s - %(message)s"
+    format_string: str = "%(asctime)s - %(levelname)s - %(message)s",
 ) -> logging.Logger:
     """
     Sets up a logger with colored output.

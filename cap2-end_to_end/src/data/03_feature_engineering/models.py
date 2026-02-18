@@ -4,8 +4,9 @@ Author: Carlos Daniel Jiménez
 Date: 2026-01-13
 """
 
+from typing import List
+
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
 
 
 class FeatureEngineeringConfig(BaseModel):

@@ -11,9 +11,8 @@ import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
-from omegaconf import OmegaConf
 import yaml
+from dotenv import load_dotenv
 
 
 def print_section(title: str):
@@ -74,7 +73,7 @@ def check_config_file():
 
         # List steps
         print("\n  Configured steps:")
-        for i, step in enumerate(config['main']['execute_steps'], 1):
+        for i, step in enumerate(config["main"]["execute_steps"], 1):
             print(f"    {i}. {step}")
 
         return True
@@ -148,7 +147,7 @@ def check_dependencies():
 
     missing = []
     for package in required_packages:
-        package_name = package.split('.')[0]  # Handle submodules
+        package_name = package.split(".")[0]  # Handle submodules
         try:
             __import__(package_name)
             print(f" {package}")
@@ -157,7 +156,7 @@ def check_dependencies():
             missing.append(package)
 
     if missing:
-        print(f"\n  Install missing packages:")
+        print("\n  Install missing packages:")
         print(f"   pip install {' '.join(missing)}")
         return False
 

@@ -1,407 +1,362 @@
-"""
-Main script for model registration to MLflow.
+"""Register final tuned model in MLflow and persist serving metadata."""
 
-This script:
-1. Reads best hyperparameters from sweep results
-2. Trains final model with optimized parameters
-3. Evaluates model comprehensively
-4. Registers model to MLflow Model Registry
-5. Saves model locally and logs to W&B
-"""
+from __future__ import annotations
+
 import argparse
 import logging
-import yaml
+import sys
+from contextlib import nullcontext
+from pathlib import Path
+from typing import Any
+
 import mlflow
 import mlflow.sklearn
-import wandb
-import os
-from pathlib import Path
-from contextlib import nullcontext
+import yaml
 from mlflow.tracking import MlflowClient
 
-from config import RegistrationConfig
-from models import RegistrationResult
+import wandb
+from models import (
+    RegistrationResult,
+    RegistrationRuntimeConfig,
+    SupportedModelType,
+    SweepBestParamsFile,
+)
 from utils import (
-    download_data_from_gcs,
-    prepare_data,
-    train_final_model,
+    GCSDataRepository,
+    create_feature_importance_plot,
     evaluate_model,
+    prepare_data,
     save_model_locally,
-    create_feature_importance_plot
+    train_final_model,
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+try:
+    project_root = Path(__file__).resolve().parents[3]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    from src.utils.colored_logger import setup_colored_logger
+
+    setup_colored_logger()
+    logger = logging.getLogger(__name__)
+except (ImportError, Exception):
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logger = logging.getLogger(__name__)
 
 
-def register_model_to_mlflow(
-    model,
-    model_name: str,
-    model_stage: str,
-    params: dict,
-    metrics: dict,
-    feature_columns: list,
-    target_column: str,
-    gcs_train_path: str,
-    gcs_test_path: str
-) -> tuple:
-    """
-    Register model to MLflow Model Registry.
+class RegistrationWorkflow:
+    """End-to-end model registration workflow."""
 
-    Args:
-        model: Trained sklearn model
-        model_name: Name for registered model
-        model_stage: Model stage (Staging/Production)
-        params: Model hyperparameters
-        metrics: Model evaluation metrics
-        feature_columns: List of feature column names
-        target_column: Target column name
-        gcs_train_path: Path to training data
-        gcs_test_path: Path to test data
+    def __init__(self, config: RegistrationRuntimeConfig):
+        self.config = config
+        self.repository = GCSDataRepository(bucket_name=config.bucket_name)
 
-    Returns:
-        Tuple of (model_uri, model_version, run_id)
-    """
-    logger.info("=" * 70)
-    logger.info("REGISTERING MODEL TO MLFLOW")
-    logger.info("=" * 70)
+    def _load_best_params(self) -> SweepBestParamsFile:
+        """Load and validate sweep output file."""
+        params_path = Path(self.config.best_params_path)
+        if not params_path.exists():
+            raise FileNotFoundError(
+                f"Best parameters file not found: {params_path}. "
+                "Run step 06_sweep before registration."
+            )
 
-    client = MlflowClient()
-    run_id = mlflow.active_run().info.run_id
-    model_uri = f"runs:/{run_id}/model"
+        with params_path.open("r", encoding="utf-8") as file:
+            payload = yaml.safe_load(file) or {}
 
-    # Log model to MLflow
-    mlflow.sklearn.log_model(model, "model")
-    logger.info(f"Model logged to MLflow: {model_uri}")
+        payload.setdefault("model_type", SupportedModelType.RANDOM_FOREST.value)
+        return SweepBestParamsFile(**payload)
 
-    # Create or get registered model
-    try:
-        client.create_registered_model(
-            name=model_name,
-            description=f"Housing price prediction model using Random Forest"
+    @staticmethod
+    def _register_model_to_mlflow(
+        model: Any,
+        model_name: str,
+        model_stage: str,
+        model_type: SupportedModelType,
+        params: dict[str, Any],
+        metrics: dict[str, float],
+        feature_columns: list[str],
+        target_column: str,
+        gcs_train_path: str,
+        gcs_test_path: str,
+    ) -> tuple[str, str, str]:
+        """Register model in MLflow Model Registry and enrich version metadata."""
+        logger.info("=" * 70)
+        logger.info("REGISTERING MODEL TO MLFLOW")
+        logger.info("=" * 70)
+
+        client = MlflowClient()
+        run = mlflow.active_run()
+        if run is None:
+            raise RuntimeError("No active MLflow run available for registration")
+
+        run_id = run.info.run_id
+        model_uri = f"runs:/{run_id}/model"
+
+        mlflow.sklearn.log_model(model, "model")
+
+        try:
+            client.create_registered_model(
+                name=model_name,
+                description=f"Housing price prediction model using {model_type.value}",
+            )
+            logger.info("Created new registered model: %s", model_name)
+        except Exception as error:
+            if "already exists" in str(error).lower():
+                logger.info("Registered model already exists: %s", model_name)
+            else:
+                raise
+
+        model_version = client.create_model_version(
+            name=model_name, source=model_uri, run_id=run_id
         )
-        logger.info(f"Created new registered model: {model_name}")
-    except Exception as e:
-        if "already exists" in str(e):
-            logger.info(f"Registered model already exists: {model_name}")
-        else:
-            raise
+        deployment_alias = model_stage.strip().lower()
+        try:
+            client.set_registered_model_alias(
+                name=model_name,
+                alias=deployment_alias,
+                version=model_version.version,
+            )
+            logger.info(
+                "Model version %s assigned alias '%s'",
+                model_version.version,
+                deployment_alias,
+            )
+        except Exception as alias_error:
+            logger.error(
+                "Could not set alias '%s' for model '%s' version '%s': %s",
+                deployment_alias,
+                model_name,
+                model_version.version,
+                alias_error,
+            )
+            raise RuntimeError(
+                "MLflow alias assignment failed. Configure a compatible MLflow "
+                "registry backend or use a version that supports model aliases."
+            ) from alias_error
 
-    # Create model version
-    model_version = client.create_model_version(
-        name=model_name,
-        source=model_uri,
-        run_id=run_id
-    )
-    logger.info(f"Created model version: {model_version.version}")
-
-    # Transition to specified stage
-    client.transition_model_version_stage(
-        name=model_name,
-        version=model_version.version,
-        stage=model_stage
-    )
-    logger.info(f"Transitioned model to stage: {model_stage}")
-
-    # Create comprehensive description
-    description = f"""
+        description = f"""
 # Housing Price Prediction Model
 
-**Algorithm:** Random Forest Regressor
+**Algorithm:** {model_type.value}
 
 ## Hyperparameters
-- n_estimators: {params['n_estimators']}
-- max_depth: {params.get('max_depth', 'None')}
-- min_samples_split: {params['min_samples_split']}
-- min_samples_leaf: {params['min_samples_leaf']}
-- max_features: {params.get('max_features', 'sqrt')}
+{yaml.safe_dump(params, sort_keys=True)}
 
 ## Performance Metrics
-
-### Primary Metrics
-- **MAE**: {metrics['mae']:.2f}
-- **RMSE**: {metrics['rmse']:.2f}
-- **R²**: {metrics['r2']:.4f}
-
-### Percentage Error Metrics
-- **MAPE**: {metrics['mape']:.2f}%
-- **SMAPE**: {metrics['smape']:.2f}%
-- **wMAPE**: {metrics['wmape']:.2f}%
-- **Median APE**: {metrics['median_ape']:.2f}%
-
-### Prediction Accuracy
-- Within 5%: {metrics['within_5pct']:.1f}%
-- Within 10%: {metrics['within_10pct']:.1f}%
-- Within 15%: {metrics['within_15pct']:.1f}%
+{yaml.safe_dump(metrics, sort_keys=True)}
 
 ## Features
-Number of features: {len(feature_columns)}
-Target: {target_column}
+- Number of features: {len(feature_columns)}
+- Target: {target_column}
 
 ## Data Sources
 - Training: {gcs_train_path}
 - Testing: {gcs_test_path}
 """
 
-    client.update_model_version(
-        name=model_name,
-        version=model_version.version,
-        description=description
-    )
-
-    # Add searchable tags
-    tags = {
-        "algorithm": "RandomForest",
-        "framework": "sklearn",
-        "mae": f"{metrics['mae']:.2f}",
-        "rmse": f"{metrics['rmse']:.2f}",
-        "r2": f"{metrics['r2']:.4f}",
-        "mape": f"{metrics['mape']:.2f}",
-        "smape": f"{metrics['smape']:.2f}",
-        "wmape": f"{metrics['wmape']:.2f}",
-        "within_10pct": f"{metrics['within_10pct']:.1f}",
-        "n_features": str(len(feature_columns)),
-        "target": target_column,
-    }
-
-    for key, value in tags.items():
-        client.set_model_version_tag(model_name, model_version.version, key, value)
-
-    logger.info("Added tags to model version")
-    logger.info("=" * 70)
-
-    return model_uri, model_version.version, run_id
-
-
-def main():
-    """Main registration workflow."""
-    parser = argparse.ArgumentParser(description="Register final model to MLflow")
-    parser.add_argument("--bucket_name", type=str, required=True, help="GCS bucket name")
-    parser.add_argument("--gcs_train_path", type=str, required=True, help="Path to training data in GCS")
-    parser.add_argument("--gcs_test_path", type=str, required=True, help="Path to test data in GCS")
-    parser.add_argument("--best_params_path", type=str, required=True, help="Path to best_params.yaml")
-    parser.add_argument("--registered_model_name", type=str, default="housing_price_model", help="Name for registered model")
-    parser.add_argument("--model_stage", type=str, default="Staging", help="Model stage")
-    parser.add_argument("--target_column", type=str, default="median_house_value", help="Target column name")
-    parser.add_argument("--wandb_project", type=str, required=True, help="W&B project name")
-    args = parser.parse_args()
-
-    logger.info("=" * 70)
-    logger.info("MODEL REGISTRATION WORKFLOW")
-    logger.info("=" * 70)
-
-    # Initialize W&B with explicit settings for CI/CD
-    wandb_settings = wandb.Settings(
-        console="wrap"
-    )
-
-    wandb.init(
-        project=args.wandb_project,
-        name="model_registration",
-        job_type="registration",
-        settings=wandb_settings
-    )
-
-    # Determine if we're running inside an MLflow project (via mlflow.run())
-    # If MLFLOW_RUN_ID is set, we're already in a run context
-    mlflow_run_id = os.environ.get("MLFLOW_RUN_ID")
-    is_mlflow_project = mlflow_run_id is not None
-
-    if is_mlflow_project:
-        logger.info(f"Running inside MLflow project, skipping MLflow logging (run: {mlflow_run_id})")
-        logger.info("MLflow logging will be handled by the orchestrator")
-        run_context = nullcontext()
-    else:
-        logger.info("Running standalone, creating new MLflow run")
-        # End any existing run before starting a new one
-        if mlflow.active_run():
-            mlflow.end_run()
-        run_context = mlflow.start_run(run_name="model_registration")
-
-    with run_context:
-        # Enable MLflow system metrics logging (only if standalone)
-        if not is_mlflow_project:
-            try:
-                mlflow.enable_system_metrics_logging()
-                logger.info("MLflow system metrics logging enabled")
-            except Exception as e:
-                logger.warning(f"Could not enable MLflow system metrics: {e}")
-
-        # Step 1: Load best parameters from sweep
-        logger.info(f"\n1. Loading best parameters from: {args.best_params_path}")
-        best_params_file = Path(args.best_params_path)
-
-        if not best_params_file.exists():
-            raise FileNotFoundError(
-                f"Best parameters file not found: {args.best_params_path}. "
-                "Please run sweep step (06_sweep) first."
-            )
-
-        with open(best_params_file, 'r') as f:
-            best_params_data = yaml.safe_load(f)
-
-        params = best_params_data['hyperparameters']
-        sweep_metrics = best_params_data.get('metrics', {})
-        sweep_id = best_params_data.get('sweep_id', 'unknown')
-
-        logger.info(f"Loaded parameters from sweep: {sweep_id}")
-        logger.info(f"Hyperparameters: {params}")
-        logger.info(f"Sweep metrics: {sweep_metrics}")
-
-        # Step 2: Download and prepare data
-        logger.info("\n2. Downloading and preparing data from GCS")
-        train_df = download_data_from_gcs(args.bucket_name, args.gcs_train_path)
-        X_train, y_train = prepare_data(train_df, args.target_column)
-
-        test_df = download_data_from_gcs(args.bucket_name, args.gcs_test_path)
-        X_test, y_test = prepare_data(test_df, args.target_column)
-
-        feature_columns = X_train.columns.tolist()
-        logger.info(f"Features: {len(feature_columns)} columns")
-
-        # Step 3: Train final model with optimized hyperparameters
-        logger.info("\n3. Training final model with optimized hyperparameters")
-        model = train_final_model(X_train, y_train, params)
-
-        # Step 4: Evaluate model
-        logger.info("\n4. Evaluating model on test set")
-        metrics = evaluate_model(model, X_test, y_test)
-
-        # Log parameters and metrics to MLflow (only if standalone)
-        if not is_mlflow_project:
-            mlflow.log_params(params)
-            mlflow.log_metrics(metrics)
-            mlflow.log_param("n_features", len(feature_columns))
-            mlflow.log_param("sweep_id", sweep_id)
-            logger.info("Logged parameters and metrics to MLflow")
-        else:
-            logger.info("Skipping MLflow logging (handled by orchestrator)")
-
-        # Log to W&B (always)
-        wandb.log({
-            **params,
-            **metrics,
-            "n_features": len(feature_columns),
-            "sweep_id": sweep_id
-        })
-
-        # Step 4.5: Create and log feature importance plot
-        logger.info("\n4.5. Creating feature importance visualization")
-        plot_path = create_feature_importance_plot(model, feature_columns)
-        if plot_path and plot_path.exists():
-            wandb.log({"feature_importance": wandb.Image(str(plot_path))})
-            if not is_mlflow_project:
-                mlflow.log_artifact(str(plot_path), artifact_path="plots")
-                logger.info("Feature importance plot logged to W&B and MLflow")
-            else:
-                logger.info("Feature importance plot logged to W&B")
-
-        # Step 5: Register model to MLflow (only if standalone)
-        if not is_mlflow_project:
-            logger.info("\n5. Registering model to MLflow Model Registry")
-            model_uri, model_version, run_id = register_model_to_mlflow(
-                model=model,
-                model_name=args.registered_model_name,
-                model_stage=args.model_stage,
-                params=params,
-                metrics=metrics,
-                feature_columns=feature_columns,
-                target_column=args.target_column,
-                gcs_train_path=args.gcs_train_path,
-                gcs_test_path=args.gcs_test_path
-            )
-        else:
-            logger.info("\n5. Skipping MLflow model registration (handled by orchestrator)")
-            # Use placeholder values when running in MLflow project
-            model_uri = "mlflow_project_run"
-            model_version = "orchestrator_managed"
-            run_id = mlflow_run_id
-
-        # Step 6: Save model locally
-        logger.info("\n6. Saving model locally")
-        models_dir = Path("models/trained")
-        model_path = models_dir / f"{args.registered_model_name}.pkl"
-        save_model_locally(model, model_path)
-
-        # Step 7: Generate model config file
-        logger.info("\n7. Generating model configuration file")
-
-        # Get project root (4 levels up from this file)
-        project_root = Path(__file__).parent.parent.parent.parent
-        config_dir = project_root / "configs"
-        config_dir.mkdir(parents=True, exist_ok=True)
-
-        model_config = {
-            'model': {
-                'name': args.registered_model_name,
-                'version': str(model_version),
-                'stage': args.model_stage,
-                'best_model': 'RandomForest',
-                'parameters': params,
-                'r2_score': float(metrics['r2']),
-                'mae': float(metrics['mae']),
-                'rmse': float(metrics['rmse']),
-                'mape': float(metrics['mape']),
-                'target_variable': args.target_column,
-                'num_features': len(feature_columns),
-                'feature_columns': feature_columns,
-                'mlflow_run_id': run_id,
-                'mlflow_model_uri': model_uri,
-                'local_path': str(model_path),
-                'sweep_id': sweep_id
-            }
-        }
-
-        config_path = config_dir / "model_config.yaml"
-        with open(config_path, 'w') as f:
-            yaml.dump(model_config, f, default_flow_style=False, indent=2)
-
-        logger.info(f"Model config saved to: {config_path}")
-
-        # Log config file to MLflow (only if standalone)
-        if not is_mlflow_project:
-            mlflow.log_artifact(str(config_path), artifact_path="config")
-            logger.info("Config logged to MLflow")
-        else:
-            logger.info("Skipping MLflow artifact logging (handled by orchestrator)")
-
-        # Create registration result
-        result = RegistrationResult(
-            model_name=args.registered_model_name,
-            model_version=str(model_version),
-            model_stage=args.model_stage,
-            model_uri=model_uri,
-            run_id=run_id,
-            hyperparameters=params,
-            metrics=metrics,
-            feature_columns=feature_columns
+        client.update_model_version(
+            name=model_name,
+            version=model_version.version,
+            description=description,
         )
 
-        # Log summary
-        logger.info("\n" + "=" * 70)
-        logger.info("REGISTRATION SUMMARY")
+        tags = {
+            "algorithm": model_type.value,
+            "framework": "sklearn",
+            "mae": f"{metrics['mae']:.2f}",
+            "rmse": f"{metrics['rmse']:.2f}",
+            "r2": f"{metrics['r2']:.4f}",
+            "mape": f"{metrics['mape']:.2f}",
+            "wmape": f"{metrics['wmape']:.2f}",
+            "within_10pct": f"{metrics['within_10pct']:.1f}",
+            "n_features": str(len(feature_columns)),
+            "target": target_column,
+            "deployment_alias": deployment_alias,
+        }
+
+        for key, value in tags.items():
+            client.set_model_version_tag(model_name, model_version.version, key, value)
+
+        logger.info(
+            "Model registration completed for version %s (deployment label: %s)",
+            model_version.version,
+            model_stage,
+        )
+        return model_uri, str(model_version.version), run_id
+
+    def run(self) -> RegistrationResult:
+        """Execute final training and registration workflow."""
         logger.info("=" * 70)
-        logger.info(f"Model Name: {result.model_name}")
-        logger.info(f"Model Version: {result.model_version}")
-        logger.info(f"Model Stage: {result.model_stage}")
-        logger.info(f"MLflow Run ID: {result.run_id}")
-        logger.info(f"Model URI: {result.model_uri}")
-        logger.info(f"Local Path: {model_path}")
+        logger.info("STEP 7: MODEL REGISTRATION")
         logger.info("=" * 70)
 
-        # Log registration info to W&B
-        wandb.log({
-            "model_name": result.model_name,
-            "model_version": result.model_version,
-            "model_stage": result.model_stage,
-            "mlflow_run_id": result.run_id
-        })
+        best_params_data = self._load_best_params()
+        model_type = best_params_data.model_type
+        params = best_params_data.hyperparameters
 
-    wandb.finish()
-    logger.info("\n Model registration completed successfully!")
+        wandb_settings = wandb.Settings(console="wrap")
+        wandb_run = wandb.init(
+            project=self.config.wandb_project,
+            name="model_registration",
+            job_type="registration",
+            settings=wandb_settings,
+        )
+
+        if mlflow.active_run():
+            logger.info("Using existing active MLflow run context")
+            run_context = nullcontext()
+        else:
+            logger.info("No active MLflow run found, creating one")
+            run_context = mlflow.start_run(run_name="model_registration")
+
+        try:
+            with run_context:
+                train_df = self.repository.download_dataframe(self.config.gcs_train_path)
+                x_train, y_train = prepare_data(train_df, self.config.target_column)
+
+                test_df = self.repository.download_dataframe(self.config.gcs_test_path)
+                x_test, y_test = prepare_data(test_df, self.config.target_column)
+
+                feature_columns = x_train.columns.tolist()
+
+                model = train_final_model(
+                    x_train=x_train,
+                    y_train=y_train,
+                    params=params,
+                    model_type=model_type,
+                )
+                metrics = evaluate_model(model=model, x_test=x_test, y_test=y_test)
+
+                mlflow.log_param("model_type", model_type.value)
+                mlflow.log_params(params)
+                mlflow.log_metrics(metrics)
+                mlflow.log_param("n_features", len(feature_columns))
+                mlflow.log_param("sweep_id", best_params_data.sweep_id)
+
+                wandb.log(
+                    {
+                        "model_type": model_type.value,
+                        **params,
+                        **metrics,
+                        "n_features": len(feature_columns),
+                        "sweep_id": best_params_data.sweep_id,
+                    }
+                )
+
+                plot_path = create_feature_importance_plot(
+                    model=model, feature_names=feature_columns
+                )
+                if plot_path and plot_path.exists():
+                    wandb.log({"feature_importance": wandb.Image(str(plot_path))})
+                    mlflow.log_artifact(str(plot_path), artifact_path="plots")
+
+                model_uri, model_version, run_id = self._register_model_to_mlflow(
+                    model=model,
+                    model_name=self.config.registered_model_name,
+                    model_stage=self.config.model_stage,
+                    model_type=model_type,
+                    params=params,
+                    metrics=metrics,
+                    feature_columns=feature_columns,
+                    target_column=self.config.target_column,
+                    gcs_train_path=self.config.gcs_train_path,
+                    gcs_test_path=self.config.gcs_test_path,
+                )
+
+                model_path = Path("models/trained") / f"{self.config.registered_model_name}.pkl"
+                save_model_locally(model=model, output_path=model_path)
+                gcs_model_uri = self.repository.upload_pickle(
+                    obj=model,
+                    gcs_path=f"models/07-registration/{self.config.registered_model_name}.pkl",
+                )
+
+                project_root = Path(__file__).resolve().parent.parent.parent.parent
+                config_dir = project_root / "configs"
+                config_dir.mkdir(parents=True, exist_ok=True)
+
+                model_config = {
+                    "model": {
+                        "name": self.config.registered_model_name,
+                        "version": model_version,
+                        "stage": self.config.model_stage,
+                        "best_model": model_type.value,
+                        "parameters": params,
+                        "r2_score": float(metrics["r2"]),
+                        "mae": float(metrics["mae"]),
+                        "rmse": float(metrics["rmse"]),
+                        "mape": float(metrics["mape"]),
+                        "target_variable": self.config.target_column,
+                        "num_features": len(feature_columns),
+                        "feature_columns": feature_columns,
+                        "mlflow_run_id": run_id,
+                        "mlflow_model_uri": model_uri,
+                        "gcs_model_uri": gcs_model_uri,
+                        "local_path": str(model_path),
+                        "sweep_id": best_params_data.sweep_id,
+                    }
+                }
+
+                config_path = config_dir / "model_config.yaml"
+                with config_path.open("w", encoding="utf-8") as file:
+                    yaml.safe_dump(model_config, file, sort_keys=False)
+
+                mlflow.log_artifact(str(config_path), artifact_path="config")
+
+                result = RegistrationResult(
+                    model_name=self.config.registered_model_name,
+                    model_version=str(model_version),
+                    model_stage=self.config.model_stage,
+                    model_uri=model_uri,
+                    gcs_model_uri=gcs_model_uri,
+                    run_id=run_id,
+                    model_type=model_type,
+                    hyperparameters=params,
+                    metrics=metrics,
+                    feature_columns=feature_columns,
+                )
+
+                wandb.log(
+                    {
+                        "model_name": result.model_name,
+                        "model_version": result.model_version,
+                        "model_stage": result.model_stage,
+                        "mlflow_run_id": result.run_id,
+                        "gcs_model_uri": result.gcs_model_uri,
+                    }
+                )
+
+                logger.info("Model registration completed successfully")
+                return result
+
+        finally:
+            if wandb_run is not None:
+                wandb_run.finish()
+
+
+def parse_args() -> RegistrationRuntimeConfig:
+    """Parse CLI arguments and validate with pydantic."""
+    parser = argparse.ArgumentParser(description="Register final model to MLflow")
+    parser.add_argument("--bucket_name", type=str, required=True)
+    parser.add_argument("--gcs_train_path", type=str, required=True)
+    parser.add_argument("--gcs_test_path", type=str, required=True)
+    parser.add_argument("--best_params_path", type=str, required=True)
+    parser.add_argument("--registered_model_name", type=str, default="housing_price_model")
+    parser.add_argument("--model_stage", type=str, default="Staging")
+    parser.add_argument("--target_column", type=str, default="median_house_value")
+    parser.add_argument("--wandb_project", type=str, required=True)
+
+    args = parser.parse_args()
+    return RegistrationRuntimeConfig(**vars(args))
+
+
+def main() -> None:
+    """CLI entrypoint."""
+    config = parse_args()
+    workflow = RegistrationWorkflow(config=config)
+    workflow.run()
 
 
 if __name__ == "__main__":

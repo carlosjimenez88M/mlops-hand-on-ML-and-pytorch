@@ -5,19 +5,21 @@ Date: 2026-01-13
 """
 
 import sys
-from pathlib import Path
-import pytest
-import pandas as pd
-import numpy as np
-from unittest.mock import Mock, patch, MagicMock
 from io import BytesIO
+from pathlib import Path
+from unittest.mock import Mock
+
+import numpy as np
+import pandas as pd
+import pytest
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src" / "data" / "04_segregation"))
 
-from models import SegregationConfig, SegregationResult
 from segregator import DataSegregator
+
+from models import SegregationConfig, SegregationResult
 
 
 class TestSegregationConfig:
@@ -37,7 +39,7 @@ class TestSegregationConfig:
             wandb_project="test-project",
             test_size=0.2,
             random_state=42,
-            target_column="target"
+            target_column="target",
         )
 
         assert config.input_artifact_name == "test_artifact:latest"
@@ -56,7 +58,7 @@ class TestSegregationConfig:
                 artifact_root="test_data",
                 bucket_name="test-bucket",
                 wandb_project="test-project",
-                test_size=0.0
+                test_size=0.0,
             )
 
     def test_config_validation_test_size_too_large(self):
@@ -70,7 +72,7 @@ class TestSegregationConfig:
                 artifact_root="test_data",
                 bucket_name="test-bucket",
                 wandb_project="test-project",
-                test_size=1.0
+                test_size=1.0,
             )
 
     def test_config_validation_random_state_negative(self):
@@ -84,7 +86,7 @@ class TestSegregationConfig:
                 artifact_root="test_data",
                 bucket_name="test-bucket",
                 wandb_project="test-project",
-                random_state=-1
+                random_state=-1,
             )
 
     def test_config_default_values(self):
@@ -96,7 +98,7 @@ class TestSegregationConfig:
             gcs_test_output_path="data/test.csv",
             artifact_root="test_data",
             bucket_name="test-bucket",
-            wandb_project="test-project"
+            wandb_project="test-project",
         )
 
         assert config.artifact_type == "segregated_data"
@@ -124,7 +126,7 @@ class TestDataSegregator:
             wandb_project="test-project",
             test_size=0.2,
             random_state=42,
-            target_column="target"
+            target_column="target",
         )
 
     @pytest.fixture
@@ -133,12 +135,14 @@ class TestDataSegregator:
         np.random.seed(42)
         n_samples = 100
 
-        return pd.DataFrame({
-            'feature1': np.random.uniform(0, 100, n_samples),
-            'feature2': np.random.uniform(0, 100, n_samples),
-            'feature3': np.random.uniform(0, 100, n_samples),
-            'target': np.random.uniform(50000, 500000, n_samples)
-        })
+        return pd.DataFrame(
+            {
+                "feature1": np.random.uniform(0, 100, n_samples),
+                "feature2": np.random.uniform(0, 100, n_samples),
+                "feature3": np.random.uniform(0, 100, n_samples),
+                "target": np.random.uniform(50000, 500000, n_samples),
+            }
+        )
 
     @pytest.fixture
     def mock_gcs_client(self):
@@ -148,14 +152,11 @@ class TestDataSegregator:
         mock_bucket.exists.return_value = True
         mock_client.bucket.return_value = mock_bucket
 
-        return {
-            'client': mock_client,
-            'bucket': mock_bucket
-        }
+        return {"client": mock_client, "bucket": mock_bucket}
 
     def test_init_success(self, sample_config, mock_gcs_client, monkeypatch):
         """Test successful initialization."""
-        monkeypatch.setattr('segregator.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("segregator.storage.Client", lambda: mock_gcs_client["client"])
 
         segregator = DataSegregator(sample_config)
 
@@ -165,15 +166,17 @@ class TestDataSegregator:
 
     def test_init_bucket_not_exists(self, sample_config, mock_gcs_client, monkeypatch):
         """Test initialization fails when bucket doesn't exist."""
-        mock_gcs_client['bucket'].exists.return_value = False
-        monkeypatch.setattr('segregator.storage.Client', lambda: mock_gcs_client['client'])
+        mock_gcs_client["bucket"].exists.return_value = False
+        monkeypatch.setattr("segregator.storage.Client", lambda: mock_gcs_client["client"])
 
         with pytest.raises(RuntimeError, match="GCS is required"):
             DataSegregator(sample_config)
 
-    def test_download_from_gcs_success(self, sample_config, sample_data, mock_gcs_client, monkeypatch):
+    def test_download_from_gcs_success(
+        self, sample_config, sample_data, mock_gcs_client, monkeypatch
+    ):
         """Test successful download from GCS."""
-        monkeypatch.setattr('segregator.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("segregator.storage.Client", lambda: mock_gcs_client["client"])
 
         csv_buffer = BytesIO()
         sample_data.to_csv(csv_buffer, index=False)
@@ -181,21 +184,21 @@ class TestDataSegregator:
 
         mock_blob = Mock()
         mock_blob.download_as_bytes.return_value = csv_bytes
-        mock_gcs_client['bucket'].blob.return_value = mock_blob
+        mock_gcs_client["bucket"].blob.return_value = mock_blob
 
         segregator = DataSegregator(sample_config)
         df = segregator.download_from_gcs()
 
         assert isinstance(df, pd.DataFrame)
         assert df.shape[0] == 100
-        assert 'target' in df.columns
+        assert "target" in df.columns
 
     def test_upload_to_gcs_success(self, sample_config, sample_data, mock_gcs_client, monkeypatch):
         """Test successful upload to GCS."""
-        monkeypatch.setattr('segregator.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("segregator.storage.Client", lambda: mock_gcs_client["client"])
 
         mock_blob = Mock()
-        mock_gcs_client['bucket'].blob.return_value = mock_blob
+        mock_gcs_client["bucket"].blob.return_value = mock_blob
 
         segregator = DataSegregator(sample_config)
         gcs_uri = segregator.upload_to_gcs(sample_data, "data/output.csv")
@@ -205,7 +208,7 @@ class TestDataSegregator:
 
     def test_split_data_success(self, sample_config, sample_data, mock_gcs_client, monkeypatch):
         """Test successful data splitting."""
-        monkeypatch.setattr('segregator.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("segregator.storage.Client", lambda: mock_gcs_client["client"])
 
         segregator = DataSegregator(sample_config)
         train_data, test_data = segregator.split_data(sample_data)
@@ -214,23 +217,27 @@ class TestDataSegregator:
         assert isinstance(test_data, pd.DataFrame)
         assert train_data.shape[0] == 80
         assert test_data.shape[0] == 20
-        assert 'target' in train_data.columns
-        assert 'target' in test_data.columns
+        assert "target" in train_data.columns
+        assert "target" in test_data.columns
         assert train_data.shape[0] + test_data.shape[0] == sample_data.shape[0]
 
-    def test_split_data_missing_target(self, sample_config, sample_data, mock_gcs_client, monkeypatch):
+    def test_split_data_missing_target(
+        self, sample_config, sample_data, mock_gcs_client, monkeypatch
+    ):
         """Test splitting fails when target column is missing."""
-        monkeypatch.setattr('segregator.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("segregator.storage.Client", lambda: mock_gcs_client["client"])
 
-        df_no_target = sample_data.drop(columns=['target'])
+        df_no_target = sample_data.drop(columns=["target"])
         segregator = DataSegregator(sample_config)
 
         with pytest.raises(KeyError, match="Target column"):
             segregator.split_data(df_no_target)
 
-    def test_split_data_preserves_columns(self, sample_config, sample_data, mock_gcs_client, monkeypatch):
+    def test_split_data_preserves_columns(
+        self, sample_config, sample_data, mock_gcs_client, monkeypatch
+    ):
         """Test that splitting preserves all columns including target."""
-        monkeypatch.setattr('segregator.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("segregator.storage.Client", lambda: mock_gcs_client["client"])
 
         segregator = DataSegregator(sample_config)
         train_data, test_data = segregator.split_data(sample_data)
@@ -238,9 +245,11 @@ class TestDataSegregator:
         assert set(train_data.columns) == set(sample_data.columns)
         assert set(test_data.columns) == set(sample_data.columns)
 
-    def test_split_data_random_state(self, sample_config, sample_data, mock_gcs_client, monkeypatch):
+    def test_split_data_random_state(
+        self, sample_config, sample_data, mock_gcs_client, monkeypatch
+    ):
         """Test that random_state ensures reproducibility."""
-        monkeypatch.setattr('segregator.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("segregator.storage.Client", lambda: mock_gcs_client["client"])
 
         segregator1 = DataSegregator(sample_config)
         train1, test1 = segregator1.split_data(sample_data.copy())
@@ -253,7 +262,7 @@ class TestDataSegregator:
 
     def test_split_data_different_test_sizes(self, sample_data, mock_gcs_client, monkeypatch):
         """Test splitting with different test_size values."""
-        monkeypatch.setattr('segregator.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("segregator.storage.Client", lambda: mock_gcs_client["client"])
 
         for test_size in [0.1, 0.2, 0.3]:
             config = SegregationConfig(
@@ -265,7 +274,7 @@ class TestDataSegregator:
                 bucket_name="test-bucket",
                 wandb_project="test-project",
                 test_size=test_size,
-                target_column="target"
+                target_column="target",
             )
 
             segregator = DataSegregator(config)
@@ -290,7 +299,7 @@ class TestSegregationResult:
             train_gcs_uri="gs://bucket/train.csv",
             test_gcs_uri="gs://bucket/test.csv",
             train_samples=80,
-            test_samples=20
+            test_samples=20,
         )
 
         assert result.input_shape == (100, 10)
@@ -312,7 +321,7 @@ class TestSegregationResult:
             train_gcs_uri="gs://my-bucket/path/to/train.csv",
             test_gcs_uri="gs://my-bucket/path/to/test.csv",
             train_samples=80,
-            test_samples=20
+            test_samples=20,
         )
 
         assert result.train_gcs_uri.startswith("gs://")
@@ -339,7 +348,7 @@ class TestDataSegregatorWorkflow:
             wandb_project="test-project",
             test_size=0.2,
             random_state=42,
-            target_column="target"
+            target_column="target",
         )
 
     @pytest.fixture
@@ -348,12 +357,14 @@ class TestDataSegregatorWorkflow:
         np.random.seed(42)
         n_samples = 100
 
-        return pd.DataFrame({
-            'feature1': np.random.uniform(0, 100, n_samples),
-            'feature2': np.random.uniform(0, 100, n_samples),
-            'feature3': np.random.uniform(0, 100, n_samples),
-            'target': np.random.uniform(50000, 500000, n_samples)
-        })
+        return pd.DataFrame(
+            {
+                "feature1": np.random.uniform(0, 100, n_samples),
+                "feature2": np.random.uniform(0, 100, n_samples),
+                "feature3": np.random.uniform(0, 100, n_samples),
+                "target": np.random.uniform(50000, 500000, n_samples),
+            }
+        )
 
     @pytest.fixture
     def mock_gcs_client(self, sample_data):
@@ -371,32 +382,28 @@ class TestDataSegregatorWorkflow:
         mock_blob.download_as_bytes.return_value = csv_bytes
         mock_bucket.blob.return_value = mock_blob
 
-        return {
-            'client': mock_client,
-            'bucket': mock_bucket,
-            'blob': mock_blob
-        }
+        return {"client": mock_client, "bucket": mock_bucket, "blob": mock_blob}
 
     def test_complete_workflow(self, sample_config, mock_gcs_client, monkeypatch):
         """Test complete segregation workflow."""
-        monkeypatch.setattr('segregator.storage.Client', lambda: mock_gcs_client['client'])
+        monkeypatch.setattr("segregator.storage.Client", lambda: mock_gcs_client["client"])
 
         segregator = DataSegregator(sample_config)
         result_data = segregator.run()
 
-        assert 'result' in result_data
-        assert 'train_data' in result_data
-        assert 'test_data' in result_data
+        assert "result" in result_data
+        assert "train_data" in result_data
+        assert "test_data" in result_data
 
-        result = result_data['result']
+        result = result_data["result"]
         assert isinstance(result, SegregationResult)
         assert result.input_shape == (100, 4)
         assert result.train_samples == 80
         assert result.test_samples == 20
 
-        train_data = result_data['train_data']
-        test_data = result_data['test_data']
+        train_data = result_data["train_data"]
+        test_data = result_data["test_data"]
         assert train_data.shape[0] == 80
         assert test_data.shape[0] == 20
-        assert 'target' in train_data.columns
-        assert 'target' in test_data.columns
+        assert "target" in train_data.columns
+        assert "target" in test_data.columns

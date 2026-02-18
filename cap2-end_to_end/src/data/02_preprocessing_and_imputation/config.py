@@ -5,8 +5,9 @@ Date: 2025-11-28
 """
 
 from pathlib import Path
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def find_env_file() -> Path:
@@ -26,7 +27,7 @@ class ComponentSettings(BaseSettings):
         env_file=str(find_env_file()),
         env_file_encoding="utf-8",
         case_sensitive=True,
-        extra="ignore"
+        extra="ignore",
     )
 
     ###############################

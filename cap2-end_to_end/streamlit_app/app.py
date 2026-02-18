@@ -7,14 +7,15 @@ California housing prices using the FastAPI backend.
 Author: Carlos Daniel Jiménez
 Date: January 2024
 """
-import streamlit as st
-import requests
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from typing import Dict, Any
+
 import os
 import time
+from typing import Any, Dict
+
+import pandas as pd
+import plotly.graph_objects as go
+import requests
+import streamlit as st
 
 # Configuration
 API_URL = os.getenv("API_URL", "http://localhost:8080")
@@ -27,11 +28,12 @@ st.set_page_config(
     page_title="Housing Price Predictor",
     page_icon="🏠",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # Custom CSS
-st.markdown("""
+st.markdown(
+    """
     <style>
     .main {
         padding: 0rem 1rem;
@@ -52,7 +54,9 @@ st.markdown("""
         border-left: 5px solid #FF4B4B;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
 
 def check_api_health() -> Dict[str, Any]:
@@ -97,11 +101,7 @@ def make_prediction(features: Dict[str, Any]) -> Dict[str, Any]:
     """
     payload = {"instances": [features]}
 
-    response = requests.post(
-        API_PREDICT_ENDPOINT,
-        json=payload,
-        timeout=10
-    )
+    response = requests.post(API_PREDICT_ENDPOINT, json=payload, timeout=10)
     response.raise_for_status()
 
     return response.json()
@@ -119,59 +119,55 @@ def create_feature_comparison_chart(features: Dict[str, Any]) -> go.Figure:
     """
     # Typical values for California housing (normalized)
     typical_values = {
-        'Median Age': 28.0,
-        'Total Rooms': 2635.0,
-        'Total Bedrooms': 537.0,
-        'Population': 1425.0,
-        'Households': 499.0,
-        'Median Income': 3.87
+        "Median Age": 28.0,
+        "Total Rooms": 2635.0,
+        "Total Bedrooms": 537.0,
+        "Population": 1425.0,
+        "Households": 499.0,
+        "Median Income": 3.87,
     }
 
     # Current values
     current_values = {
-        'Median Age': features['housing_median_age'],
-        'Total Rooms': features['total_rooms'],
-        'Total Bedrooms': features['total_bedrooms'],
-        'Population': features['population'],
-        'Households': features['households'],
-        'Median Income': features['median_income']
+        "Median Age": features["housing_median_age"],
+        "Total Rooms": features["total_rooms"],
+        "Total Bedrooms": features["total_bedrooms"],
+        "Population": features["population"],
+        "Households": features["households"],
+        "Median Income": features["median_income"],
     }
 
     # Normalize values (percentage of typical)
     categories = list(typical_values.keys())
     typical_normalized = [100] * len(categories)
-    current_normalized = [
-        (current_values[cat] / typical_values[cat]) * 100
-        for cat in categories
-    ]
+    current_normalized = [(current_values[cat] / typical_values[cat]) * 100 for cat in categories]
 
     fig = go.Figure()
 
-    fig.add_trace(go.Scatterpolar(
-        r=typical_normalized,
-        theta=categories,
-        fill='toself',
-        name='Typical CA Home',
-        line=dict(color='lightblue', width=2)
-    ))
+    fig.add_trace(
+        go.Scatterpolar(
+            r=typical_normalized,
+            theta=categories,
+            fill="toself",
+            name="Typical CA Home",
+            line=dict(color="lightblue", width=2),
+        )
+    )
 
-    fig.add_trace(go.Scatterpolar(
-        r=current_normalized,
-        theta=categories,
-        fill='toself',
-        name='Your Input',
-        line=dict(color='#FF4B4B', width=2)
-    ))
+    fig.add_trace(
+        go.Scatterpolar(
+            r=current_normalized,
+            theta=categories,
+            fill="toself",
+            name="Your Input",
+            line=dict(color="#FF4B4B", width=2),
+        )
+    )
 
     fig.update_layout(
-        polar=dict(
-            radialaxis=dict(
-                visible=True,
-                range=[0, 200]
-            )
-        ),
+        polar=dict(radialaxis=dict(visible=True, range=[0, 200])),
         showlegend=True,
-        title="Feature Comparison (% of Typical Values)"
+        title="Feature Comparison (% of Typical Values)",
     )
 
     return fig
@@ -188,26 +184,21 @@ def create_location_map(latitude: float, longitude: float) -> go.Figure:
     Returns:
         Plotly figure
     """
-    fig = go.Figure(go.Scattermapbox(
-        lat=[latitude],
-        lon=[longitude],
-        mode='markers',
-        marker=go.scattermapbox.Marker(
-            size=15,
-            color='red'
-        ),
-        text=['House Location'],
-        hoverinfo='text'
-    ))
+    fig = go.Figure(
+        go.Scattermapbox(
+            lat=[latitude],
+            lon=[longitude],
+            mode="markers",
+            marker=go.scattermapbox.Marker(size=15, color="red"),
+            text=["House Location"],
+            hoverinfo="text",
+        )
+    )
 
     fig.update_layout(
-        mapbox=dict(
-            style='open-street-map',
-            center=dict(lat=latitude, lon=longitude),
-            zoom=9
-        ),
+        mapbox=dict(style="open-street-map", center=dict(lat=latitude, lon=longitude), zoom=9),
         margin=dict(l=0, r=0, t=0, b=0),
-        height=400
+        height=400,
     )
 
     return fig
@@ -252,17 +243,11 @@ with st.sidebar:
     col1, col2 = st.columns(2)
     with col1:
         longitude = st.number_input(
-            "Longitude",
-            value=-122.23,
-            format="%.2f",
-            help="Geographic longitude coordinate"
+            "Longitude", value=-122.23, format="%.2f", help="Geographic longitude coordinate"
         )
     with col2:
         latitude = st.number_input(
-            "Latitude",
-            value=37.88,
-            format="%.2f",
-            help="Geographic latitude coordinate"
+            "Latitude", value=37.88, format="%.2f", help="Geographic latitude coordinate"
         )
 
     # Area characteristics
@@ -273,15 +258,11 @@ with st.sidebar:
         min_value=1,
         max_value=52,
         value=41,
-        help="Median age of houses in the block"
+        help="Median age of houses in the block",
     )
 
     total_rooms = st.number_input(
-        "Total Rooms",
-        value=880,
-        step=100,
-        min_value=1,
-        help="Total number of rooms in the block"
+        "Total Rooms", value=880, step=100, min_value=1, help="Total number of rooms in the block"
     )
 
     total_bedrooms = st.number_input(
@@ -289,23 +270,15 @@ with st.sidebar:
         value=129,
         step=10,
         min_value=1,
-        help="Total number of bedrooms in the block"
+        help="Total number of bedrooms in the block",
     )
 
     population = st.number_input(
-        "Population",
-        value=322,
-        step=50,
-        min_value=1,
-        help="Total population in the block"
+        "Population", value=322, step=50, min_value=1, help="Total population in the block"
     )
 
     households = st.number_input(
-        "Households",
-        value=126,
-        step=10,
-        min_value=1,
-        help="Number of households in the block"
+        "Households", value=126, step=10, min_value=1, help="Number of households in the block"
     )
 
     median_income = st.number_input(
@@ -314,7 +287,7 @@ with st.sidebar:
         format="%.4f",
         step=0.1,
         min_value=0.0,
-        help="Median income in units of $10,000"
+        help="Median income in units of $10,000",
     )
 
     # Ocean proximity
@@ -322,7 +295,7 @@ with st.sidebar:
     ocean_proximity = st.selectbox(
         "Distance to Ocean",
         options=["<1H OCEAN", "INLAND", "ISLAND", "NEAR BAY", "NEAR OCEAN"],
-        help="Proximity to the ocean"
+        help="Proximity to the ocean",
     )
 
 # Main content
@@ -358,7 +331,7 @@ if st.button("🔮 Predict House Price", type="primary"):
         "population": population,
         "households": households,
         "median_income": median_income,
-        "ocean_proximity": ocean_proximity
+        "ocean_proximity": ocean_proximity,
     }
 
     # Make prediction
@@ -381,12 +354,15 @@ if st.button("🔮 Predict House Price", type="primary"):
             col1, col2, col3 = st.columns([2, 1, 1])
 
             with col1:
-                st.markdown(f"""
+                st.markdown(
+                    f"""
                 <div class="metric-card">
                     <h1 style='color: #FF4B4B; margin: 0;'>${prediction:,.2f}</h1>
                     <p style='margin: 0; color: #666;'>Median House Value</p>
                 </div>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
 
             with col2:
                 st.metric("Model Version", model_version)
@@ -422,14 +398,14 @@ if st.button("🔮 Predict House Price", type="primary"):
                 st.metric(
                     "Price per Room",
                     f"${prediction / total_rooms:,.2f}",
-                    help="Predicted price divided by total rooms"
+                    help="Predicted price divided by total rooms",
                 )
 
             with col2:
                 st.metric(
                     "Price per Household",
                     f"${prediction / households:,.2f}",
-                    help="Predicted price divided by number of households"
+                    help="Predicted price divided by number of households",
                 )
 
             with col3:
@@ -438,7 +414,7 @@ if st.button("🔮 Predict House Price", type="primary"):
                 st.metric(
                     "Income-to-Price Ratio",
                     f"{income_to_price_ratio:.2%}",
-                    help="Median income as percentage of house price"
+                    help="Median income as percentage of house price",
                 )
 
             # Additional insights

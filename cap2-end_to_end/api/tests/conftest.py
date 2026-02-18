@@ -1,19 +1,21 @@
 """
 Pytest configuration and fixtures for API tests.
 """
-import pytest
-import numpy as np
-from fastapi.testclient import TestClient
-from unittest.mock import Mock
+
 import sys
 from pathlib import Path
+from unittest.mock import Mock
+
+import numpy as np
+import pytest
+from fastapi.testclient import TestClient
 
 # Add parent directory to path for imports
 api_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(api_dir))
 
-from app.main import app
 from app.core.model_loader import ModelLoader
+from app.main import app
 from app.routers import predict
 
 
@@ -66,16 +68,14 @@ def sample_housing_data():
         "population": 322.0,
         "households": 126.0,
         "median_income": 8.3252,
-        "ocean_proximity": "NEAR BAY"
+        "ocean_proximity": "NEAR BAY",
     }
 
 
 @pytest.fixture
 def sample_prediction_request(sample_housing_data):
     """Sample prediction request."""
-    return {
-        "instances": [sample_housing_data]
-    }
+    return {"instances": [sample_housing_data]}
 
 
 @pytest.fixture
@@ -85,6 +85,6 @@ def sample_batch_prediction_request(sample_housing_data):
         "instances": [
             sample_housing_data,
             {**sample_housing_data, "median_income": 5.0},
-            {**sample_housing_data, "housing_median_age": 20.0}
+            {**sample_housing_data, "housing_median_age": 20.0},
         ]
     }

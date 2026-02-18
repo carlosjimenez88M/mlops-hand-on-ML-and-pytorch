@@ -1,6 +1,7 @@
 """
 Tests for API endpoints.
 """
+
 from fastapi import status
 
 
@@ -47,10 +48,7 @@ class TestPredictionEndpoint:
 
     def test_predict_single_instance(self, client, sample_prediction_request):
         """Test prediction with single instance."""
-        response = client.post(
-            "/api/v1/predict",
-            json=sample_prediction_request
-        )
+        response = client.post("/api/v1/predict", json=sample_prediction_request)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -62,10 +60,7 @@ class TestPredictionEndpoint:
 
     def test_predict_batch(self, client, sample_batch_prediction_request):
         """Test batch prediction."""
-        response = client.post(
-            "/api/v1/predict",
-            json=sample_batch_prediction_request
-        )
+        response = client.post("/api/v1/predict", json=sample_batch_prediction_request)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -105,10 +100,7 @@ class TestPredictionEndpoint:
 
     def test_predict_response_structure(self, client, sample_prediction_request):
         """Test prediction response has correct structure."""
-        response = client.post(
-            "/api/v1/predict",
-            json=sample_prediction_request
-        )
+        response = client.post("/api/v1/predict", json=sample_prediction_request)
 
         data = response.json()
         assert isinstance(data["predictions"], list)

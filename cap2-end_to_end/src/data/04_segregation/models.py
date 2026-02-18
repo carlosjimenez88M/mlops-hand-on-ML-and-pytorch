@@ -5,7 +5,6 @@ Date: 2026-01-13
 """
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
 
 
 class SegregationConfig(BaseModel):

@@ -9,13 +9,15 @@ Philosophy:
 - Edge cases should be REALISTIC edge cases
 - Performance tests should have REAL performance assertions
 """
+
+import gzip
 import io
 import tarfile
-import gzip
 from pathlib import Path
 from typing import Dict, Tuple
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 
 class TestDataGenerator:
@@ -58,40 +60,40 @@ class TestDataGenerator:
 
         # Generate realistic distributions
         data = {
-            'longitude': np.random.uniform(-124, -114, n_rows),
-            'latitude': np.random.uniform(32, 42, n_rows),
-            'housing_median_age': np.random.randint(1, 53, n_rows),
-            'total_rooms': np.random.lognormal(6.5, 0.8, n_rows).astype(int),
-            'total_bedrooms': np.random.lognormal(5.5, 0.7, n_rows).astype(int),
-            'population': np.random.lognormal(6.0, 0.9, n_rows).astype(int),
-            'households': np.random.lognormal(5.3, 0.7, n_rows).astype(int),
-            'median_income': np.random.gamma(3, 2, n_rows),
-            'ocean_proximity': np.random.choice(
-                ['<1H OCEAN', 'INLAND', 'ISLAND', 'NEAR BAY', 'NEAR OCEAN'],
+            "longitude": np.random.uniform(-124, -114, n_rows),
+            "latitude": np.random.uniform(32, 42, n_rows),
+            "housing_median_age": np.random.randint(1, 53, n_rows),
+            "total_rooms": np.random.lognormal(6.5, 0.8, n_rows).astype(int),
+            "total_bedrooms": np.random.lognormal(5.5, 0.7, n_rows).astype(int),
+            "population": np.random.lognormal(6.0, 0.9, n_rows).astype(int),
+            "households": np.random.lognormal(5.3, 0.7, n_rows).astype(int),
+            "median_income": np.random.gamma(3, 2, n_rows),
+            "ocean_proximity": np.random.choice(
+                ["<1H OCEAN", "INLAND", "ISLAND", "NEAR BAY", "NEAR OCEAN"],
                 n_rows,
-                p=[0.4, 0.35, 0.002, 0.15, 0.098]  # Realistic distribution
+                p=[0.4, 0.35, 0.002, 0.15, 0.098],  # Realistic distribution
             ),
-            'median_house_value': np.random.lognormal(12.5, 0.5, n_rows)
+            "median_house_value": np.random.lognormal(12.5, 0.5, n_rows),
         }
 
         df = pd.DataFrame(data)
 
         # Add realistic missing values (total_bedrooms has ~0.5% missing in real data)
         missing_indices = np.random.choice(n_rows, size=int(n_rows * 0.005), replace=False)
-        df.loc[missing_indices, 'total_bedrooms'] = np.nan
+        df.loc[missing_indices, "total_bedrooms"] = np.nan
 
         # Clip to realistic ranges
-        df['median_income'] = df['median_income'].clip(0.5, 15)
-        df['median_house_value'] = df['median_house_value'].clip(15000, 500001)
+        df["median_income"] = df["median_income"].clip(0.5, 15)
+        df["median_house_value"] = df["median_house_value"].clip(15000, 500001)
 
         # Ensure logical constraints (bedrooms < rooms, households < population)
-        df['total_bedrooms'] = df[['total_bedrooms', 'total_rooms']].min(axis=1) * 0.2
-        df['households'] = df[['households', 'population']].min(axis=1) * 0.3
+        df["total_bedrooms"] = df[["total_bedrooms", "total_rooms"]].min(axis=1) * 0.2
+        df["households"] = df[["households", "population"]].min(axis=1) * 0.3
 
         return df
 
     @staticmethod
-    def generate_corrupted_csv(corruption_type: str = 'missing_columns') -> bytes:
+    def generate_corrupted_csv(corruption_type: str = "missing_columns") -> bytes:
         """
         Generate CSV data with specific types of corruption.
 
@@ -109,45 +111,38 @@ class TestDataGenerator:
         Returns:
             Corrupted CSV as bytes
         """
-        if corruption_type == 'missing_columns':
+        if corruption_type == "missing_columns":
             csv_data = (
                 "longitude,latitude,housing_median_age,total_rooms,total_bedrooms\n"
                 "-122.23,37.88,41,880,129\n"
                 "-122.22,37.86,21\n"  # Missing 2 columns
                 "-122.24,37.85,52,7099,1106\n"
             )
-        elif corruption_type == 'extra_columns':
+        elif corruption_type == "extra_columns":
             csv_data = (
                 "longitude,latitude,housing_median_age\n"
                 "-122.23,37.88,41\n"
                 "-122.22,37.86,21,999,extra,data\n"  # Extra columns
                 "-122.24,37.85,52\n"
             )
-        elif corruption_type == 'invalid_numbers':
+        elif corruption_type == "invalid_numbers":
             csv_data = (
                 "longitude,latitude,housing_median_age,total_rooms\n"
                 "-122.23,37.88,41,880\n"
                 "-122.22,INVALID,21,765\n"  # Invalid number
                 "-122.24,37.85,fifty-two,7099\n"  # Text instead of number
             )
-        elif corruption_type == 'wrong_delimiter':
-            csv_data = (
-                "longitude;latitude;housing_median_age\n"
-                "-122.23;37.88;41\n"
-                "-122.22;37.86;21\n"
-            )
-        elif corruption_type == 'missing_header':
-            csv_data = (
-                "-122.23,37.88,41,880,129\n"
-                "-122.22,37.86,21,765,235\n"
-            )
-        elif corruption_type == 'duplicate_columns':
+        elif corruption_type == "wrong_delimiter":
+            csv_data = "longitude;latitude;housing_median_age\n-122.23;37.88;41\n-122.22;37.86;21\n"
+        elif corruption_type == "missing_header":
+            csv_data = "-122.23,37.88,41,880,129\n-122.22,37.86,21,765,235\n"
+        elif corruption_type == "duplicate_columns":
             csv_data = (
                 "longitude,latitude,longitude,housing_median_age\n"  # Duplicate 'longitude'
                 "-122.23,37.88,-122.23,41\n"
                 "-122.22,37.86,-122.22,21\n"
             )
-        elif corruption_type == 'empty_lines':
+        elif corruption_type == "empty_lines":
             csv_data = (
                 "longitude,latitude,housing_median_age\n"
                 "-122.23,37.88,41\n"
@@ -156,19 +151,19 @@ class TestDataGenerator:
                 "-122.22,37.86,21\n"
                 "\n"
             )
-        elif corruption_type == 'malformed_quotes':
+        elif corruption_type == "malformed_quotes":
             csv_data = (
-                'longitude,latitude,ocean_proximity\n'
+                "longitude,latitude,ocean_proximity\n"
                 '-122.23,37.88,"NEAR BAY\n'  # Unbalanced quote
                 '-122.22,37.86,"INLAND\n'
             )
         else:
             raise ValueError(f"Unknown corruption type: {corruption_type}")
 
-        return csv_data.encode('utf-8')
+        return csv_data.encode("utf-8")
 
     @staticmethod
-    def generate_csv_with_encoding(encoding: str = 'utf-8', add_bom: bool = False) -> bytes:
+    def generate_csv_with_encoding(encoding: str = "utf-8", add_bom: bool = False) -> bytes:
         """
         Generate CSV with specific encoding.
 
@@ -180,7 +175,7 @@ class TestDataGenerator:
             CSV data encoded with specified encoding
         """
         # For latin-1, use only latin-1 compatible characters
-        if encoding.lower() in ['latin-1', 'iso-8859-1']:
+        if encoding.lower() in ["latin-1", "iso-8859-1"]:
             csv_data = (
                 "longitude,latitude,city_name,notes\n"
                 "-122.23,37.88,Sao Paulo,Cafe resume naive\n"
@@ -201,11 +196,11 @@ class TestDataGenerator:
         encoded = csv_data.encode(encoding)
 
         if add_bom:
-            if encoding.lower() == 'utf-8':
-                encoded = b'\xef\xbb\xbf' + encoded
-            elif encoding.lower() == 'utf-16':
+            if encoding.lower() == "utf-8":
+                encoded = b"\xef\xbb\xbf" + encoded
+            elif encoding.lower() == "utf-16":
                 # UTF-16 with BOM (LE)
-                encoded = b'\xff\xfe' + csv_data.encode('utf-16-le')
+                encoded = b"\xff\xfe" + csv_data.encode("utf-16-le")
 
         return encoded
 
@@ -228,13 +223,10 @@ class TestDataGenerator:
 
         csv_buffer = io.StringIO()
         df.to_csv(csv_buffer, index=False)
-        return csv_buffer.getvalue().encode('utf-8')
+        return csv_buffer.getvalue().encode("utf-8")
 
     @staticmethod
-    def create_tar_gz(
-        files: Dict[str, bytes],
-        output_path: Path = None
-    ) -> Tuple[bytes, Path]:
+    def create_tar_gz(files: Dict[str, bytes], output_path: Path = None) -> Tuple[bytes, Path]:
         """
         Create a tar.gz archive with multiple files.
 
@@ -247,7 +239,7 @@ class TestDataGenerator:
         """
         buffer = io.BytesIO()
 
-        with tarfile.open(fileobj=buffer, mode='w:gz') as tar:
+        with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
             for filename, content in files.items():
                 # Create TarInfo
                 info = tarfile.TarInfo(name=filename)
@@ -261,7 +253,7 @@ class TestDataGenerator:
         # Save to disk if path provided
         if output_path:
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(tar_content)
 
         return tar_content, output_path
@@ -279,14 +271,14 @@ class TestDataGenerator:
             Tuple of (gzipped content, path if saved)
         """
         buffer = io.BytesIO()
-        with gzip.GzipFile(fileobj=buffer, mode='wb') as gz:
+        with gzip.GzipFile(fileobj=buffer, mode="wb") as gz:
             gz.write(content)
 
         gzipped = buffer.getvalue()
 
         if output_path:
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(gzipped)
 
         return gzipped, output_path
@@ -296,7 +288,7 @@ class PerformanceTestData:
     """Performance test utilities with measurable expectations."""
 
     @staticmethod
-    def estimate_processing_time(file_size_mb: float, operation: str = 'parse_csv') -> float:
+    def estimate_processing_time(file_size_mb: float, operation: str = "parse_csv") -> float:
         """
         Estimate expected processing time based on file size.
 
@@ -309,21 +301,21 @@ class PerformanceTestData:
         """
         # Benchmarks (adjust based on actual hardware)
         benchmarks = {
-            'parse_csv': 0.5,  # seconds per MB (pandas is fast)
-            'compress': 0.2,   # seconds per MB
-            'decompress': 0.1, # seconds per MB
-            'upload': 2.0,     # seconds per MB (network dependent)
-            'download': 1.0,   # seconds per MB
-            'preprocess': 0.3, # seconds per MB
-            'impute': 0.4,     # seconds per MB
-            'feature_engineering': 0.6,  # seconds per MB
+            "parse_csv": 0.5,  # seconds per MB (pandas is fast)
+            "compress": 0.2,  # seconds per MB
+            "decompress": 0.1,  # seconds per MB
+            "upload": 2.0,  # seconds per MB (network dependent)
+            "download": 1.0,  # seconds per MB
+            "preprocess": 0.3,  # seconds per MB
+            "impute": 0.4,  # seconds per MB
+            "feature_engineering": 0.6,  # seconds per MB
         }
 
         base_time = benchmarks.get(operation, 1.0)
 
         # Add overhead and margin
         overhead = 1.0  # 1 second base overhead
-        margin = 1.5    # 50% margin for variance
+        margin = 1.5  # 50% margin for variance
 
         return (file_size_mb * base_time + overhead) * margin
 
@@ -333,10 +325,7 @@ class PreprocessingTestData:
 
     @staticmethod
     def generate_data_with_missing_patterns(
-        n_rows: int = 1000,
-        missing_rate: float = 0.1,
-        pattern: str = 'MCAR',
-        seed: int = 42
+        n_rows: int = 1000, missing_rate: float = 0.1, pattern: str = "MCAR", seed: int = 42
     ) -> pd.DataFrame:
         """
         Generate data with realistic missing value patterns.
@@ -358,24 +347,24 @@ class PreprocessingTestData:
         # Generate base data
         base_df = TestDataGenerator.generate_realistic_housing_data(n_rows, seed)
 
-        if pattern == 'MCAR':
+        if pattern == "MCAR":
             # Completely random - 10% missing in total_bedrooms (like real data)
             mask = np.random.random(n_rows) < missing_rate
-            base_df.loc[mask, 'total_bedrooms'] = np.nan
+            base_df.loc[mask, "total_bedrooms"] = np.nan
 
-        elif pattern == 'MAR':
+        elif pattern == "MAR":
             # Missing depends on another variable (older houses more likely to have missing data)
             # This is realistic - older housing records have incomplete data
-            older_houses = base_df['housing_median_age'] > 40
+            older_houses = base_df["housing_median_age"] > 40
             mask = older_houses & (np.random.random(n_rows) < missing_rate * 2)
-            base_df.loc[mask, 'total_bedrooms'] = np.nan
+            base_df.loc[mask, "total_bedrooms"] = np.nan
 
-        elif pattern == 'MNAR':
+        elif pattern == "MNAR":
             # Missing depends on the value itself (very high bedroom counts not recorded)
             # Realistic - outliers sometimes not recorded properly
-            high_bedrooms = base_df['total_bedrooms'] > base_df['total_bedrooms'].quantile(0.95)
+            high_bedrooms = base_df["total_bedrooms"] > base_df["total_bedrooms"].quantile(0.95)
             mask = high_bedrooms & (np.random.random(n_rows) < missing_rate * 3)
-            base_df.loc[mask, 'total_bedrooms'] = np.nan
+            base_df.loc[mask, "total_bedrooms"] = np.nan
 
         return base_df
 
@@ -383,8 +372,8 @@ class PreprocessingTestData:
     def generate_data_with_outliers(
         n_rows: int = 1000,
         outlier_rate: float = 0.05,
-        outlier_type: str = 'extreme',
-        seed: int = 42
+        outlier_type: str = "extreme",
+        seed: int = 42,
     ) -> pd.DataFrame:
         """
         Generate data with realistic outliers.
@@ -406,22 +395,22 @@ class PreprocessingTestData:
         df = TestDataGenerator.generate_realistic_housing_data(n_rows, seed)
         n_outliers = int(n_rows * outlier_rate)
 
-        if outlier_type == 'extreme':
+        if outlier_type == "extreme":
             # Extremely high house values (outliers in expensive areas)
             outlier_indices = np.random.choice(n_rows, n_outliers, replace=False)
-            df.loc[outlier_indices, 'median_house_value'] *= np.random.uniform(5, 10, n_outliers)
+            df.loc[outlier_indices, "median_house_value"] *= np.random.uniform(5, 10, n_outliers)
 
-        elif outlier_type == 'moderate':
+        elif outlier_type == "moderate":
             # Moderately high values (still outliers but more realistic)
             outlier_indices = np.random.choice(n_rows, n_outliers, replace=False)
-            df.loc[outlier_indices, 'median_house_value'] *= np.random.uniform(2, 4, n_outliers)
+            df.loc[outlier_indices, "median_house_value"] *= np.random.uniform(2, 4, n_outliers)
 
-        elif outlier_type == 'data_entry':
+        elif outlier_type == "data_entry":
             # Data entry errors (realistic mistakes)
             outlier_indices = np.random.choice(n_rows, n_outliers, replace=False)
             # Housing age can't be > 100, but data entry might record it
-            df.loc[outlier_indices, 'housing_median_age'] *= 10
+            df.loc[outlier_indices, "housing_median_age"] *= 10
             # Population can't be negative, but errors happen
-            df.loc[outlier_indices[:n_outliers//2], 'population'] *= -1
+            df.loc[outlier_indices[: n_outliers // 2], "population"] *= -1
 
         return df

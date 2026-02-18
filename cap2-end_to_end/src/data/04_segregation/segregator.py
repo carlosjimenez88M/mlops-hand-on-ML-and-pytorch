@@ -5,30 +5,28 @@ Date: 2026-01-13
 """
 
 from __future__ import annotations
-import io
-import sys
-import logging
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from typing import Optional, Tuple, Dict
-from pathlib import Path
-from sklearn.model_selection import train_test_split
-from google.cloud import storage
-import wandb
 
-from config import settings
+import io
+import logging
+import sys
+from pathlib import Path
+from typing import Dict, Optional, Tuple
+
+import matplotlib.pyplot as plt
+import pandas as pd
+from google.cloud import storage
+from sklearn.model_selection import train_test_split
+
+import wandb
 from models import SegregationConfig, SegregationResult
 
 try:
-    sys.path.insert(0, str(__file__).rsplit('/', 5)[0])
+    sys.path.insert(0, str(__file__).rsplit("/", 5)[0])
     from src.utils.colored_logger import setup_colored_logger
+
     logger = setup_colored_logger(__name__)
 except (ImportError, Exception):
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     logger = logging.getLogger(__name__)
 
 
@@ -50,8 +48,9 @@ class DataSegregator:
         """Initialize GCS client."""
         try:
             import os
-            if os.getenv('GOOGLE_APPLICATION_CREDENTIALS') == '':
-                os.environ.pop('GOOGLE_APPLICATION_CREDENTIALS', None)
+
+            if os.getenv("GOOGLE_APPLICATION_CREDENTIALS") == "":
+                os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 
             self.storage_client = storage.Client()
             self.bucket = self.storage_client.bucket(self.config.bucket_name)
@@ -64,8 +63,7 @@ class DataSegregator:
         except Exception as e:
             logger.error(f"Error connecting to GCS: {e}")
             raise RuntimeError(
-                "GCS is required for this component. "
-                "Check your configuration and credentials."
+                "GCS is required for this component. Check your configuration and credentials."
             ) from e
 
     def download_from_gcs(self) -> pd.DataFrame:
@@ -78,7 +76,7 @@ class DataSegregator:
             content = blob.download_as_bytes()
 
             # Load DataFrame (supports CSV and Parquet)
-            if blob_path.endswith('.parquet'):
+            if blob_path.endswith(".parquet"):
                 df = pd.read_parquet(io.BytesIO(content))
             else:
                 df = pd.read_csv(io.BytesIO(content))
@@ -97,14 +95,16 @@ class DataSegregator:
 
             # Convert to bytes (supports CSV and Parquet)
             data_buffer = io.BytesIO()
-            if gcs_path.endswith('.parquet'):
-                df.to_parquet(data_buffer, index=False, engine='pyarrow')
+            if gcs_path.endswith(".parquet"):
+                df.to_parquet(data_buffer, index=False, engine="pyarrow")
             else:
                 df.to_csv(data_buffer, index=False)
             data_buffer.seek(0)
 
             blob = self.bucket.blob(gcs_path)
-            content_type = 'application/octet-stream' if gcs_path.endswith('.parquet') else 'text/csv'
+            content_type = (
+                "application/octet-stream" if gcs_path.endswith(".parquet") else "text/csv"
+            )
             blob.upload_from_file(data_buffer, content_type=content_type)
 
             gcs_uri = f"gs://{self.config.bucket_name}/{gcs_path}"
@@ -130,10 +130,7 @@ class DataSegregator:
 
             logger.info(f"Performing train/test split (test_size={self.config.test_size})")
             X_train, X_test, y_train, y_test = train_test_split(
-                X,
-                y,
-                test_size=self.config.test_size,
-                random_state=self.config.random_state
+                X, y, test_size=self.config.test_size, random_state=self.config.random_state
             )
 
             train_data = X_train.copy()
@@ -155,7 +152,7 @@ class DataSegregator:
         self,
         train_data: pd.DataFrame,
         test_data: pd.DataFrame,
-        output_dir: Path = Path("artifacts/segregation")
+        output_dir: Path = Path("artifacts/segregation"),
     ) -> Path:
         """
         Create visualization comparing train/test distributions.
@@ -168,11 +165,17 @@ class DataSegregator:
 
         try:
             # Select numeric columns for visualization
-            numeric_cols = train_data.select_dtypes(include=['number']).columns.tolist()
+            numeric_cols = train_data.select_dtypes(include=["number"]).columns.tolist()
 
             # Limit to top 6 most important features
-            key_features = [self.config.target_column, 'median_income', 'housing_median_age',
-                          'latitude', 'longitude', 'total_rooms']
+            key_features = [
+                self.config.target_column,
+                "median_income",
+                "housing_median_age",
+                "latitude",
+                "longitude",
+                "total_rooms",
+            ]
             key_features = [col for col in key_features if col in numeric_cols][:6]
 
             fig, axes = plt.subplots(2, 3, figsize=(15, 10))
@@ -182,12 +185,16 @@ class DataSegregator:
                 ax = axes[idx]
 
                 # Plot distributions
-                ax.hist(train_data[col], bins=30, alpha=0.6, label='Train', color='blue', density=True)
-                ax.hist(test_data[col], bins=30, alpha=0.6, label='Test', color='orange', density=True)
+                ax.hist(
+                    train_data[col], bins=30, alpha=0.6, label="Train", color="blue", density=True
+                )
+                ax.hist(
+                    test_data[col], bins=30, alpha=0.6, label="Test", color="orange", density=True
+                )
 
                 ax.set_xlabel(col)
-                ax.set_ylabel('Density')
-                ax.set_title(f'Distribution: {col}')
+                ax.set_ylabel("Density")
+                ax.set_title(f"Distribution: {col}")
                 ax.legend()
                 ax.grid(True, alpha=0.3)
 
@@ -195,9 +202,9 @@ class DataSegregator:
             for idx in range(len(key_features), 6):
                 axes[idx].set_visible(False)
 
-            plt.suptitle('Train vs Test Distributions', fontsize=16, fontweight='bold')
+            plt.suptitle("Train vs Test Distributions", fontsize=16, fontweight="bold")
             plt.tight_layout()
-            plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+            plt.savefig(plot_path, dpi=150, bbox_inches="tight")
             plt.close()
 
             logger.info(f"Distribution plots saved to: {plot_path}")
@@ -208,9 +215,7 @@ class DataSegregator:
             return None
 
     def create_statistics_table(
-        self,
-        train_data: pd.DataFrame,
-        test_data: pd.DataFrame
+        self, train_data: pd.DataFrame, test_data: pd.DataFrame
     ) -> wandb.Table:
         """
         Create W&B Table comparing train/test statistics.
@@ -220,7 +225,7 @@ class DataSegregator:
         """
         try:
             # Get numeric columns
-            numeric_cols = train_data.select_dtypes(include=['number']).columns.tolist()
+            numeric_cols = train_data.select_dtypes(include=["number"]).columns.tolist()
 
             # Calculate statistics
             stats_data = []
@@ -231,16 +236,20 @@ class DataSegregator:
                 test_std = test_data[col].std()
 
                 # Calculate percentage difference
-                mean_diff = abs((test_mean - train_mean) / train_mean * 100) if train_mean != 0 else 0
+                mean_diff = (
+                    abs((test_mean - train_mean) / train_mean * 100) if train_mean != 0 else 0
+                )
 
-                stats_data.append([
-                    col,
-                    round(train_mean, 2),
-                    round(test_mean, 2),
-                    round(mean_diff, 2),
-                    round(train_std, 2),
-                    round(test_std, 2)
-                ])
+                stats_data.append(
+                    [
+                        col,
+                        round(train_mean, 2),
+                        round(test_mean, 2),
+                        round(mean_diff, 2),
+                        round(train_std, 2),
+                        round(test_std, 2),
+                    ]
+                )
 
             # Create W&B Table
             columns = ["Feature", "Train Mean", "Test Mean", "Mean Diff %", "Train Std", "Test Std"]
@@ -276,7 +285,7 @@ class DataSegregator:
                 train_gcs_uri=train_gcs_uri,
                 test_gcs_uri=test_gcs_uri,
                 train_samples=train_data.shape[0],
-                test_samples=test_data.shape[0]
+                test_samples=test_data.shape[0],
             )
 
             logger.info("=" * 70)
@@ -289,11 +298,7 @@ class DataSegregator:
             logger.info(f"Test GCS URI: {result.test_gcs_uri}")
             logger.info("=" * 70)
 
-            return {
-                "result": result,
-                "train_data": train_data,
-                "test_data": test_data
-            }
+            return {"result": result, "train_data": train_data, "test_data": test_data}
 
         except Exception as e:
             logger.error(f"Data segregation failed: {e}")

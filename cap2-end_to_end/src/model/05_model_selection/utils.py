@@ -4,15 +4,16 @@ Author: Carlos Daniel Jiménez
 Date: 2026-01-13
 """
 
+import time
+from typing import Any, Dict, Tuple
+
 import numpy as np
 import pandas as pd
-from typing import Dict, Tuple, Any
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.linear_model import Ridge, Lasso
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.linear_model import Lasso, Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-import time
+from sklearn.model_selection import GridSearchCV
+from sklearn.tree import DecisionTreeRegressor
 
 
 def get_available_models() -> Dict[str, Any]:
@@ -27,7 +28,7 @@ def get_available_models() -> Dict[str, Any]:
         "GradientBoosting": GradientBoostingRegressor(random_state=42),
         "Ridge": Ridge(random_state=42),
         "Lasso": Lasso(random_state=42),
-        "DecisionTree": DecisionTreeRegressor(random_state=42)
+        "DecisionTree": DecisionTreeRegressor(random_state=42),
     }
     return models
 
@@ -68,7 +69,7 @@ def get_default_param_grids() -> Dict[str, Dict[str, list]]:
             "max_depth": [5, 10, 15, 20, 25, None],
             "min_samples_split": [2, 5, 10, 20],
             "min_samples_leaf": [1, 2, 4, 8],
-        }
+        },
     }
     return param_grids
 
@@ -215,16 +216,12 @@ def evaluate_model(model: Any, X_test: pd.DataFrame, y_test: pd.Series) -> Dict[
         "median_ape": float(median_ape),
         "within_5pct": float(within_5pct),
         "within_10pct": float(within_10pct),
-        "within_15pct": float(within_15pct)
+        "within_15pct": float(within_15pct),
     }
 
 
 def train_model_with_gridsearch(
-    model: Any,
-    param_grid: Dict[str, list],
-    X_train: pd.DataFrame,
-    y_train: pd.Series,
-    cv: int = 5
+    model: Any, param_grid: Dict[str, list], X_train: pd.DataFrame, y_train: pd.Series, cv: int = 5
 ) -> Tuple[Any, Dict[str, Any], float, Dict[str, float]]:
     """
     Train model with K-fold Cross-Validation via GridSearchCV.
@@ -250,10 +247,10 @@ def train_model_with_gridsearch(
         estimator=model,
         param_grid=param_grid,
         cv=cv,
-        scoring='neg_mean_absolute_error',
+        scoring="neg_mean_absolute_error",
         n_jobs=-1,
         verbose=0,
-        return_train_score=True
+        return_train_score=True,
     )
 
     grid_search.fit(X_train, y_train)
@@ -263,9 +260,13 @@ def train_model_with_gridsearch(
     # Extract cross-validation results
     cv_metrics = {
         "mean_test_score": float(-grid_search.best_score_),
-        "std_test_score": float(grid_search.cv_results_['std_test_score'][grid_search.best_index_]),
-        "mean_train_score": float(-grid_search.cv_results_['mean_train_score'][grid_search.best_index_]),
-        "std_train_score": float(grid_search.cv_results_['std_train_score'][grid_search.best_index_]),
+        "std_test_score": float(grid_search.cv_results_["std_test_score"][grid_search.best_index_]),
+        "mean_train_score": float(
+            -grid_search.cv_results_["mean_train_score"][grid_search.best_index_]
+        ),
+        "std_train_score": float(
+            grid_search.cv_results_["std_train_score"][grid_search.best_index_]
+        ),
     }
 
     return grid_search.best_estimator_, grid_search.best_params_, training_time, cv_metrics

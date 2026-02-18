@@ -13,13 +13,15 @@ from pathlib import Path
 from typing import List
 
 import hydra
-import mlflow
-import wandb
-from omegaconf import DictConfig, OmegaConf
+import yaml
 from dotenv import load_dotenv
+from omegaconf import DictConfig, OmegaConf
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file only when running in a real shell
+# context (tests may intentionally run with a near-empty environment).
+_MINIMAL_ENV_KEYS = {"PATH", "LC_CTYPE"}
+if any(key not in _MINIMAL_ENV_KEYS for key in os.environ):
+    load_dotenv()
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent
@@ -80,12 +82,24 @@ def setup_environment(config: DictConfig) -> None:
     os.environ["WANDB_PROJECT"] = config["main"]["project_name"]
     os.environ["WANDB_RUN_GROUP"] = config["main"]["experiment_name"]
 
+    # Configure MLflow tracking backend.
+    # Use SQLite by default to avoid deprecated filesystem backend warnings.
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+    if not tracking_uri:
+        default_tracking_uri = f"sqlite:///{(PROJECT_ROOT / 'mlflow.db').resolve()}"
+        os.environ["MLFLOW_TRACKING_URI"] = default_tracking_uri
+        tracking_uri = default_tracking_uri
+    os.environ.setdefault("MLFLOW_REGISTRY_URI", tracking_uri)
+
+    import mlflow
+
+    mlflow.set_tracking_uri(tracking_uri)
+
+    # Lazy import to reduce CLI startup latency (`python main.py --help`).
+    import wandb
+
     # Initialize wandb config
-    wandb.config = OmegaConf.to_container(
-        config,
-        resolve=True,
-        throw_on_missing=True
-    )
+    wandb.config = OmegaConf.to_container(config, resolve=True, throw_on_missing=True)
 
     print("\n" + "=" * 70)
     print("  MLOPS PIPELINE ORCHESTRATOR")
@@ -93,6 +107,7 @@ def setup_environment(config: DictConfig) -> None:
     print(f"  Project: {config['main']['project_name']}")
     print(f"  Experiment: {config['main']['experiment_name']}")
     print(f"  GCS Bucket: {config['gcs']['bucket_name']}")
+    print(f"  MLflow Tracking URI: {tracking_uri}")
     print("=" * 70 + "\n")
 
 
@@ -106,10 +121,10 @@ def get_steps_to_execute(config: DictConfig) -> List[str]:
     Returns:
         List of step names to execute
     """
-    execute_steps = config['main']['execute_steps']
+    execute_steps = config["main"]["execute_steps"]
 
     if isinstance(execute_steps, str):
-        steps = [s.strip() for s in execute_steps.split(',')]
+        steps = [s.strip() for s in execute_steps.split(",")]
     else:
         steps = list(execute_steps)
 
@@ -128,6 +143,8 @@ def run_download_data(config: DictConfig, root_path: Path) -> None:
     print("\n" + "=" * 70)
     print("  STEP 1: DOWNLOAD DATA")
     print("=" * 70)
+
+    import mlflow
 
     step_path = root_path / "src" / "data" / "01_download_data"
 
@@ -160,6 +177,8 @@ def run_preprocessing_and_imputation(config: DictConfig, root_path: Path) -> Non
     print("\n" + "=" * 70)
     print("  STEP 2: PREPROCESSING AND IMPUTATION")
     print("=" * 70)
+
+    import mlflow
 
     step_path = root_path / "src" / "data" / "02_preprocessing_and_imputation"
 
@@ -195,6 +214,8 @@ def run_feature_engineering(config: DictConfig, root_path: Path) -> None:
     print("\n" + "=" * 70)
     print("  STEP 3: FEATURE ENGINEERING")
     print("=" * 70)
+
+    import mlflow
 
     step_path = root_path / "src" / "data" / "03_feature_engineering"
 
@@ -233,6 +254,8 @@ def run_segregation(config: DictConfig, root_path: Path) -> None:
     print("  STEP 4: DATA SEGREGATION")
     print("=" * 70)
 
+    import mlflow
+
     step_path = root_path / "src" / "data" / "04_segregation"
 
     mlflow.run(
@@ -270,6 +293,8 @@ def run_model_selection(config: DictConfig, root_path: Path) -> None:
     print("  STEP 5: MODEL SELECTION")
     print("=" * 70)
 
+    import mlflow
+
     step_path = root_path / "src" / "model" / "05_model_selection"
 
     mlflow.run(
@@ -303,7 +328,41 @@ def run_sweep(config: DictConfig, root_path: Path) -> None:
     print("  STEP 6: HYPERPARAMETER SWEEP")
     print("=" * 70)
 
+    import mlflow
+
     step_path = root_path / "src" / "model" / "06_sweep"
+
+    model_selection_summary_path = (
+        root_path / "src" / "model" / "05_model_selection" / "best_model_summary.yaml"
+    )
+    best_model_type = config["sweep"]["best_model_type"]
+
+    if model_selection_summary_path.exists():
+        try:
+            with model_selection_summary_path.open("r", encoding="utf-8") as file:
+                summary_data = yaml.safe_load(file) or {}
+
+            selected_model = summary_data.get("best_model", {}).get("best_model_name")
+        except Exception as parse_error:
+            selected_model = None
+            print(
+                f"  Failed to parse {model_selection_summary_path}: {parse_error}. "
+                f"Using fallback: {best_model_type}"
+            )
+
+        if isinstance(selected_model, str) and selected_model.strip():
+            best_model_type = selected_model
+            print(f"  Detected selected model from step 05: {best_model_type}")
+        else:
+            print(
+                f"  Could not parse best model from {model_selection_summary_path}. "
+                f"Using fallback: {best_model_type}"
+            )
+    else:
+        print(
+            "  best_model_summary.yaml not found. "
+            f"Using configured fallback model: {best_model_type}"
+        )
 
     mlflow.run(
         uri=str(step_path),
@@ -316,8 +375,10 @@ def run_sweep(config: DictConfig, root_path: Path) -> None:
             "gcs_test_path": config["sweep"]["gcs_test_path"],
             "bucket_name": config["gcs"]["bucket_name"],
             "wandb_project": config["main"]["project_name"],
+            "best_model_type": best_model_type,
             "target_column": config["sweep"]["target_column"],
             "sweep_count": config["sweep"]["sweep_count"],
+            "random_state": config["sweep"]["random_state"],
         },
     )
 
@@ -335,6 +396,8 @@ def run_registration(config: DictConfig, root_path: Path) -> None:
     print("\n" + "=" * 70)
     print("  STEP 7: MODEL REGISTRATION")
     print("=" * 70)
+
+    import mlflow
 
     step_path = root_path / "src" / "model" / "07_registration"
 
@@ -362,11 +425,7 @@ def run_registration(config: DictConfig, root_path: Path) -> None:
     print("\nModel registration completed successfully!\n")
 
 
-@hydra.main(
-    config_path='.',
-    config_name="config",
-    version_base="1.3"
-)
+@hydra.main(config_path="conf", config_name="config", version_base="1.3")
 def go(config: DictConfig) -> None:
     """
     Main orchestrator function that executes the ML pipeline.
@@ -388,6 +447,7 @@ def go(config: DictConfig) -> None:
 
     # Track start time
     import time
+
     start_time = time.time()
 
     try:
@@ -418,7 +478,7 @@ def go(config: DictConfig) -> None:
         print("\n" + "=" * 70)
         print("  PIPELINE EXECUTION SUMMARY")
         print("=" * 70)
-        print(f"  All steps completed successfully!")
+        print("  All steps completed successfully!")
         print(f"  Total execution time: {elapsed_time:.2f} seconds")
         print(f"  GCS Bucket: gs://{config['gcs']['bucket_name']}")
         print(f"  W&B Project: {config['main']['project_name']}")

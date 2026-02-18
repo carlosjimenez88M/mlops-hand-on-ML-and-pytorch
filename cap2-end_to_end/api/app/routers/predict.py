@@ -1,20 +1,22 @@
 """
 Prediction router for housing price predictions.
 """
-from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import JSONResponse
-import pandas as pd
+
 import logging
 import time
 
+import pandas as pd
+from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import JSONResponse
+
+from app.core.model_loader import ModelLoader
+from app.core.wandb_logger import WandBLogger
 from app.models.schemas import (
+    ErrorResponse,
     PredictionRequest,
     PredictionResponse,
     PredictionResult,
-    ErrorResponse
 )
-from app.core.model_loader import ModelLoader
-from app.core.wandb_logger import WandBLogger
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,7 @@ def set_wandb_logger(logger_instance: WandBLogger) -> None:
         500: {"model": ErrorResponse, "description": "Prediction failed"},
     },
     summary="Predict housing prices",
-    description="Make predictions for housing prices based on input features"
+    description="Make predictions for housing prices based on input features",
 )
 async def predict(request: PredictionRequest) -> PredictionResponse:
     """
@@ -64,8 +66,7 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
     if model_loader is None or not model_loader.is_loaded:
         logger.error("Model not loaded")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Model not loaded"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Model not loaded"
         )
 
     start_time = time.time()
@@ -74,17 +75,19 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
     try:
         # Convert input features to DataFrame
         for instance in request.instances:
-            features_list.append({
-                'longitude': instance.longitude,
-                'latitude': instance.latitude,
-                'housing_median_age': instance.housing_median_age,
-                'total_rooms': instance.total_rooms,
-                'total_bedrooms': instance.total_bedrooms,
-                'population': instance.population,
-                'households': instance.households,
-                'median_income': instance.median_income,
-                'ocean_proximity': instance.ocean_proximity
-            })
+            features_list.append(
+                {
+                    "longitude": instance.longitude,
+                    "latitude": instance.latitude,
+                    "housing_median_age": instance.housing_median_age,
+                    "total_rooms": instance.total_rooms,
+                    "total_bedrooms": instance.total_bedrooms,
+                    "population": instance.population,
+                    "households": instance.households,
+                    "median_income": instance.median_income,
+                    "ocean_proximity": instance.ocean_proximity,
+                }
+            )
 
         df = pd.DataFrame(features_list)
 
@@ -96,10 +99,7 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
 
         # Format response
         results = [
-            PredictionResult(
-                predicted_price=float(pred),
-                confidence_interval=None
-            )
+            PredictionResult(predicted_price=float(pred), confidence_interval=None)
             for pred in predictions
         ]
 
@@ -109,29 +109,24 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
                 features=features_list,
                 predictions=[float(p) for p in predictions],
                 model_version=model_loader.model_version,
-                response_time_ms=response_time_ms
+                response_time_ms=response_time_ms,
             )
 
-        return PredictionResponse(
-            predictions=results,
-            model_version=model_loader.model_version
-        )
+        return PredictionResponse(predictions=results, model_version=model_loader.model_version)
 
     except ValueError as e:
         logger.error(f"Validation error: {str(e)}")
         if wandb_logger:
             wandb_logger.log_error("validation_error", str(e), features_list)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid input data: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid input data: {str(e)}"
         )
     except Exception as e:
         logger.error(f"Prediction failed: {str(e)}")
         if wandb_logger:
             wandb_logger.log_error("prediction_error", str(e))
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Prediction failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Prediction failed: {str(e)}"
         )
 
 
@@ -139,7 +134,7 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
     "/model/info",
     status_code=status.HTTP_200_OK,
     summary="Get model information",
-    description="Get information about the loaded model"
+    description="Get information about the loaded model",
 )
 async def model_info() -> JSONResponse:
     """
@@ -151,17 +146,13 @@ async def model_info() -> JSONResponse:
     if model_loader is None:
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={
-                "status": "not_initialized",
-                "model_loaded": False,
-                "model_version": None
-            }
+            content={"status": "not_initialized", "model_loaded": False, "model_version": None},
         )
 
     return JSONResponse(
         content={
             "status": "ready" if model_loader.is_loaded else "not_loaded",
             "model_loaded": model_loader.is_loaded,
-            "model_version": model_loader.model_version if model_loader.is_loaded else None
+            "model_version": model_loader.model_version if model_loader.is_loaded else None,
         }
     )

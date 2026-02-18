@@ -1,25 +1,25 @@
-sweep_id: f73ao31m
-best_run_id: 5q1840qa
-best_run_name: dry-sweep-5
+sweep_id: aadnfqki
+best_run_id: lgsb18xh
+best_run_name: snowy-sweep-32
+model_type: GradientBoosting
 hyperparameters:
-  n_estimators: 128
-  max_depth: 23
-  min_samples_split: 9
-  min_samples_leaf: 9
-  max_features: log2
+  learning_rate: 0.07009925729923229
+  min_samples_split: 17
+  subsample: 0.8182379694901705
+  n_estimators: 418
+  max_features: null
+  max_depth: 8
+  min_samples_leaf: 2
   random_state: 42
 metrics:
-  # Primary metrics
-  mae: 38901.45
-  rmse: 53277.02
-  r2: 0.78339
-  # Percentage error metrics
-  mape: 20.4002
-  smape: 18.85
-  wmape: 19.12
-  median_ape: 16.73
-  # Accuracy within thresholds
-  within_5pct: 12.4
-  within_10pct: 36.2
-  within_15pct: 52.8
-sweep_url: https://wandb.ai/danieljimenez88m-carlosdanieljimenez-com/housing-mlops-gcp/sweeps/f73ao31m
+  mae: 29325.176069463007
+  rmse: 45076.44184790461
+  r2: 0.8449426367335227
+  mape: 16.54733293504644
+  smape: 14.992213125957354
+  wmape: 14.270137172804823
+  median_ape: 11.023408841405102
+  within_5pct: 26.16279069767442
+  within_10pct: 46.85077519379845
+  within_15pct: 62.66957364341085
+sweep_url: https://wandb.ai/danieljimenez88m-carlosdanieljimenez-com/housing-mlops-gcp/sweeps/aadnfqki

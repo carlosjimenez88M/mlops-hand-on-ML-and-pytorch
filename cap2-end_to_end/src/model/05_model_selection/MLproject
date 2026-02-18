@@ -34,7 +34,7 @@ entry_points:
         description: "Target column name"
 
       random_state:
-        type: float
+        type: int
         default: 42
         description: "Random state for reproducibility"
 

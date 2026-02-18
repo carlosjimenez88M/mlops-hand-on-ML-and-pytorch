@@ -5,31 +5,42 @@ Author: Carlos Daniel Jiménez
 Date: 2025-11-28
 """
 
-#=======================#
+# =======================#
 # ----- Libraries ----- #
-#=======================#
+# =======================#
 
 import argparse
 import logging
 import sys
 from datetime import datetime
+from pathlib import Path
 
-import wandb
 import matplotlib.pyplot as plt
+from config import settings
+from preprocessor import DataPreprocessor
 from pydantic import ValidationError
 
+import wandb
 from models import PreprocessingConfig
-from preprocessor import DataPreprocessor
-from config import settings
 
 # ================================#
 # ---- Logger Configuration ---- #
 # ================================#
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger()
+try:
+    project_root = Path(__file__).resolve().parents[3]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    from src.utils.colored_logger import setup_colored_logger
+
+    setup_colored_logger()
+    logger = logging.getLogger(__name__)
+except (ImportError, Exception):
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logger = logging.getLogger(__name__)
 
 
 def main(args: argparse.Namespace) -> int:
@@ -55,10 +66,10 @@ def main(args: argparse.Namespace) -> int:
             bucket_name=args.bucket_name,
             wandb_project=args.wandb_project,
             imputation_strategy=args.imputation_strategy,
-            create_features=args.create_features
+            create_features=args.create_features,
         )
 
-        logger.info(f"Configuration validated:")
+        logger.info("Configuration validated:")
         logger.info(f"  Input: gs://{config.bucket_name}/{config.gcs_input_path}")
         logger.info(f"  Output: gs://{config.bucket_name}/{config.gcs_output_path}")
         logger.info(f"  W&B Project: {config.wandb_project}")
@@ -83,9 +94,8 @@ def main(args: argparse.Namespace) -> int:
             job_type="preprocessing",
             name=f"preprocess_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             tags=["preprocessing", "imputation", "feature-engineering", "pipeline-step-2"],
-            config=config.model_dump(mode='json')
+            config=config.model_dump(mode="json"),
         ) as run:
-
             # 4. Execute preprocessing
             result = preprocessor.run()
 
@@ -114,15 +124,11 @@ def main(args: argparse.Namespace) -> int:
                 name=config.artifact_name,
                 type=config.artifact_type,
                 description=config.artifact_description or "Preprocessed dataset",
-                metadata=metadata.to_dict()
+                metadata=metadata.to_dict(),
             )
 
             # Add reference to GCS
-            artifact.add_reference(
-                result.gcs_output_uri,
-                name="gcs_location",
-                checksum=False
-            )
+            artifact.add_reference(result.gcs_output_uri, name="gcs_location", checksum=False)
 
             # 7. Log artifact
             logger.info("Logging artifact to W&B...")
@@ -130,23 +136,25 @@ def main(args: argparse.Namespace) -> int:
             artifact.wait()
 
             # 8. Log metrics
-            run.summary.update({
-                'input_rows': result.stats.input_rows,
-                'output_rows': result.stats.output_rows,
-                'rows_dropped': result.stats.rows_dropped,
-                'input_columns': result.stats.input_columns,
-                'output_columns': result.stats.output_columns,
-                'columns_added': result.stats.columns_added,
-                'new_features_count': len(result.stats.new_features),
-                'input_size_mb': result.stats.input_size_mb,
-                'output_size_mb': result.stats.output_size_mb,
-                'imputation_strategy': config.imputation_strategy,
-                'gcs_output_uri': result.gcs_output_uri
-            })
+            run.summary.update(
+                {
+                    "input_rows": result.stats.input_rows,
+                    "output_rows": result.stats.output_rows,
+                    "rows_dropped": result.stats.rows_dropped,
+                    "input_columns": result.stats.input_columns,
+                    "output_columns": result.stats.output_columns,
+                    "columns_added": result.stats.columns_added,
+                    "new_features_count": len(result.stats.new_features),
+                    "input_size_mb": result.stats.input_size_mb,
+                    "output_size_mb": result.stats.output_size_mb,
+                    "imputation_strategy": config.imputation_strategy,
+                    "gcs_output_uri": result.gcs_output_uri,
+                }
+            )
 
             # Log new features as list
             if result.stats.new_features:
-                run.summary['new_features'] = result.stats.new_features
+                run.summary["new_features"] = result.stats.new_features
 
             # 9. Final report
             logger.info("\n" + "=" * 70)
@@ -155,8 +163,12 @@ def main(args: argparse.Namespace) -> int:
             logger.info(f"  - Input GCS URI: {result.gcs_input_uri}")
             logger.info(f"  - Output GCS URI: {result.gcs_output_uri}")
             logger.info(f"  - W&B Artifact: {config.artifact_name}")
-            logger.info(f"  - Input: {result.stats.input_rows:,} rows, {result.stats.input_columns} cols")
-            logger.info(f"  - Output: {result.stats.output_rows:,} rows, {result.stats.output_columns} cols")
+            logger.info(
+                f"  - Input: {result.stats.input_rows:,} rows, {result.stats.input_columns} cols"
+            )
+            logger.info(
+                f"  - Output: {result.stats.output_rows:,} rows, {result.stats.output_columns} cols"
+            )
             logger.info(f"  - Rows dropped: {result.stats.rows_dropped:,}")
             logger.info(f"  - New features: {len(result.stats.new_features)}")
             if result.stats.new_features:
@@ -190,63 +202,57 @@ This component:
   3. Creates engineered features
   4. Uploads processed data back to GCS
   5. Logs artifact to W&B
-        """
+        """,
     )
 
     parser.add_argument(
         "--input_artifact_name",
         type=str,
         required=True,
-        help="Name of the input artifact from W&B (step 1)"
+        help="Name of the input artifact from W&B (step 1)",
     )
 
     parser.add_argument(
         "--gcs_input_path",
         type=str,
         required=True,
-        help="GCS path to input data (without gs://bucket/)"
+        help="GCS path to input data (without gs://bucket/)",
     )
 
     parser.add_argument(
         "--gcs_output_path",
         type=str,
         default="data/02-processed/housing_processed.csv",
-        help="GCS path for output data (without gs://bucket/)"
+        help="GCS path for output data (without gs://bucket/)",
     )
 
     parser.add_argument(
         "--artifact_name",
         type=str,
         default="housing_data_processed",
-        help="Name of the output artifact in W&B"
+        help="Name of the output artifact in W&B",
     )
 
     parser.add_argument(
         "--artifact_type",
         type=str,
         default="processed_data",
-        help="Type of artifact (processed_data, clean_data, etc.)"
+        help="Type of artifact (processed_data, clean_data, etc.)",
     )
 
     parser.add_argument(
-        "--artifact_description",
-        type=str,
-        default="",
-        help="Description of the artifact"
+        "--artifact_description", type=str, default="", help="Description of the artifact"
     )
 
     parser.add_argument(
         "--bucket_name",
         type=str,
         default=settings.GCS_BUCKET_NAME,
-        help="GCS bucket name (without gs://)"
+        help="GCS bucket name (without gs://)",
     )
 
     parser.add_argument(
-        "--wandb_project",
-        type=str,
-        default=settings.WANDB_PROJECT,
-        help="Project name in W&B"
+        "--wandb_project", type=str, default=settings.WANDB_PROJECT, help="Project name in W&B"
     )
 
     parser.add_argument(
@@ -254,14 +260,11 @@ This component:
         type=str,
         choices=["mean", "median", "mode", "drop", "auto"],
         default="auto",
-        help="Strategy for handling missing values. 'auto' compares all methods and selects the best one based on RMSE."
+        help="Strategy for handling missing values. 'auto' compares all methods and selects the best one based on RMSE.",
     )
 
     parser.add_argument(
-        "--create_features",
-        type=bool,
-        default=True,
-        help="Whether to create engineered features"
+        "--create_features", type=bool, default=True, help="Whether to create engineered features"
     )
 
     args = parser.parse_args()

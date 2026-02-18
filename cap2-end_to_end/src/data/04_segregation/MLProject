@@ -48,7 +48,7 @@ entry_points:
         description: "Fraction of data for test set"
 
       random_state:
-        type: float
+        type: int
         default: 42
         description: "Random state for reproducibility"
 

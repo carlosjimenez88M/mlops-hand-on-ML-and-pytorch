@@ -12,16 +12,18 @@ Consolidated realistic tests for:
 
 Philosophy: Real data, real edge cases, measurable performance
 """
+
+import sys
 import time
 from pathlib import Path
-import sys
-import pytest
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+import pytest
 
 # Setup paths
 sys.path.insert(0, str(Path(__file__).parent / "fixtures"))
-from test_data_generator import TestDataGenerator, PreprocessingTestData, PerformanceTestData
+from test_data_generator import PerformanceTestData, PreprocessingTestData, TestDataGenerator
 
 # Test markers
 pytestmark = pytest.mark.realistic
@@ -39,19 +41,17 @@ class TestPreprocessorRealistic:
         - Incorrect imputation biases predictions
         """
         df = PreprocessingTestData.generate_data_with_missing_patterns(
-            n_rows=1000,
-            missing_rate=0.1,
-            pattern='MCAR'
+            n_rows=1000, missing_rate=0.1, pattern="MCAR"
         )
 
         # Verify test data has missing values
-        assert df['total_bedrooms'].isna().sum() > 0
-        missing_before = df['total_bedrooms'].isna().sum()
+        assert df["total_bedrooms"].isna().sum() > 0
+        missing_before = df["total_bedrooms"].isna().sum()
 
         # Impute using median (standard for MCAR)
         df_clean = df.fillna(df.median(numeric_only=True))
 
-        assert df_clean['total_bedrooms'].isna().sum() == 0
+        assert df_clean["total_bedrooms"].isna().sum() == 0
         assert len(df_clean) == len(df)
 
         print(f"\n✅ MCAR: {missing_before} missing → 0 missing")
@@ -65,22 +65,22 @@ class TestPreprocessorRealistic:
         - Need conditional imputation, not simple median
         """
         df = PreprocessingTestData.generate_data_with_missing_patterns(
-            n_rows=1000,
-            missing_rate=0.1,
-            pattern='MAR'
+            n_rows=1000, missing_rate=0.1, pattern="MAR"
         )
 
-        missing_before = df['total_bedrooms'].isna().sum()
+        missing_before = df["total_bedrooms"].isna().sum()
         assert missing_before > 0
 
         # For MAR, groupwise imputation is better
         df_clean = df.copy()
-        df_clean['age_group'] = pd.cut(df_clean['housing_median_age'], bins=3, labels=['new', 'mid', 'old'])
-        df_clean['total_bedrooms'] = df_clean.groupby('age_group')['total_bedrooms'].transform(
-            lambda x: x.fillna(x.median())
+        df_clean["age_group"] = pd.cut(
+            df_clean["housing_median_age"], bins=3, labels=["new", "mid", "old"]
         )
+        df_clean["total_bedrooms"] = df_clean.groupby("age_group", observed=False)[
+            "total_bedrooms"
+        ].transform(lambda x: x.fillna(x.median()))
 
-        assert df_clean['total_bedrooms'].isna().sum() == 0
+        assert df_clean["total_bedrooms"].isna().sum() == 0
         print(f"\n✅ MAR: {missing_before} missing → 0 missing (groupwise)")
 
     @pytest.mark.performance
@@ -96,7 +96,7 @@ class TestPreprocessorRealistic:
         df = TestDataGenerator.generate_realistic_housing_data(size_rows)
         size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
 
-        expected_time = PerformanceTestData.estimate_processing_time(size_mb, 'preprocess')
+        expected_time = PerformanceTestData.estimate_processing_time(size_mb, "preprocess")
 
         start = time.time()
         # Basic preprocessing operations
@@ -119,17 +119,16 @@ class TestPreprocessorRealistic:
         - Need to detect without removing valid extreme values
         """
         df = PreprocessingTestData.generate_data_with_outliers(
-            n_rows=1000,
-            outlier_rate=0.05,
-            outlier_type='extreme'
+            n_rows=1000, outlier_rate=0.05, outlier_type="extreme"
         )
 
         # Detect outliers using IQR method
-        Q1 = df['median_house_value'].quantile(0.25)
-        Q3 = df['median_house_value'].quantile(0.75)
+        Q1 = df["median_house_value"].quantile(0.25)
+        Q3 = df["median_house_value"].quantile(0.75)
         IQR = Q3 - Q1
-        outlier_mask = (df['median_house_value'] < Q1 - 1.5 * IQR) | \
-                       (df['median_house_value'] > Q3 + 1.5 * IQR)
+        outlier_mask = (df["median_house_value"] < Q1 - 1.5 * IQR) | (
+            df["median_house_value"] > Q3 + 1.5 * IQR
+        )
 
         n_outliers = outlier_mask.sum()
 
@@ -137,17 +136,20 @@ class TestPreprocessorRealistic:
         assert n_outliers > 0
         assert n_outliers < len(df) * 0.15  # Not too many false positives
 
-        print(f"\n✅ Detected {n_outliers} outliers ({n_outliers/len(df)*100:.1f}%)")
+        print(f"\n✅ Detected {n_outliers} outliers ({n_outliers / len(df) * 100:.1f}%)")
 
 
 class TestImputationAnalyzerRealistic:
     """Realistic imputation strategy tests."""
 
-    @pytest.mark.parametrize("pattern,expected_strategy", [
-        ('MCAR', ['median', 'mean']),
-        ('MAR', ['knn', 'median']),
-        ('MNAR', ['median', 'knn']),  # More complex, several strategies work
-    ])
+    @pytest.mark.parametrize(
+        "pattern,expected_strategy",
+        [
+            ("MCAR", ["median", "mean"]),
+            ("MAR", ["knn", "median"]),
+            ("MNAR", ["median", "knn"]),  # More complex, several strategies work
+        ],
+    )
     def test_imputation_strategy_selection(self, pattern, expected_strategy):
         """
         Test: Does analyzer select appropriate strategy for missing pattern?
@@ -158,23 +160,21 @@ class TestImputationAnalyzerRealistic:
         - This is data science correctness, not just code correctness
         """
         df = PreprocessingTestData.generate_data_with_missing_patterns(
-            n_rows=500,
-            missing_rate=0.1,
-            pattern=pattern
+            n_rows=500, missing_rate=0.1, pattern=pattern
         )
 
         # Simple strategy selector (you'd use your ImputationAnalyzer)
-        missing_rate = df['total_bedrooms'].isna().sum() / len(df)
+        missing_rate = df["total_bedrooms"].isna().sum() / len(df)
 
         if missing_rate < 0.05:
-            selected_strategy = 'drop'
+            selected_strategy = "drop"
         elif missing_rate < 0.15:
-            selected_strategy = 'median'
+            selected_strategy = "median"
         else:
-            selected_strategy = 'knn'
+            selected_strategy = "knn"
 
         # Verify reasonable strategy was selected
-        assert selected_strategy in expected_strategy + ['drop', 'knn']
+        assert selected_strategy in expected_strategy + ["drop", "knn"]
 
         print(f"\n✅ {pattern}: selected '{selected_strategy}' (missing: {missing_rate:.1%})")
 
@@ -187,27 +187,27 @@ class TestImputationAnalyzerRealistic:
         - Leads to biased models
         """
         df = PreprocessingTestData.generate_data_with_missing_patterns(
-            n_rows=1000,
-            missing_rate=0.1,
-            pattern='MCAR'
+            n_rows=1000, missing_rate=0.1, pattern="MCAR"
         )
 
         # Original statistics (before introducing missing)
-        original_mean = df['median_income'].mean()
-        original_std = df['median_income'].std()
+        original_mean = df["median_income"].mean()
+        original_std = df["median_income"].std()
 
         # Create missing values
         df_missing = df.copy()
         missing_mask = np.random.random(len(df)) < 0.1
-        df_missing.loc[missing_mask, 'median_income'] = np.nan
+        df_missing.loc[missing_mask, "median_income"] = np.nan
 
         # Impute
         df_imputed = df_missing.copy()
-        df_imputed['median_income'] = df_imputed['median_income'].fillna(df_imputed['median_income'].median())
+        df_imputed["median_income"] = df_imputed["median_income"].fillna(
+            df_imputed["median_income"].median()
+        )
 
         # Check distribution is similar
-        imputed_mean = df_imputed['median_income'].mean()
-        imputed_std = df_imputed['median_income'].std()
+        imputed_mean = df_imputed["median_income"].mean()
+        imputed_std = df_imputed["median_income"].std()
 
         # Mean should be close (within 5%)
         assert abs(imputed_mean - original_mean) / original_mean < 0.05
@@ -215,8 +215,10 @@ class TestImputationAnalyzerRealistic:
         # Std dev might change slightly but not drastically
         assert abs(imputed_std - original_std) / original_std < 0.15
 
-        print(f"\n✅ Distribution preserved: mean {original_mean:.2f}→{imputed_mean:.2f}, "
-              f"std {original_std:.2f}→{imputed_std:.2f}")
+        print(
+            f"\n✅ Distribution preserved: mean {original_mean:.2f}→{imputed_mean:.2f}, "
+            f"std {original_std:.2f}→{imputed_std:.2f}"
+        )
 
 
 class TestFeatureEngineeringRealistic:
@@ -236,26 +238,27 @@ class TestFeatureEngineeringRealistic:
         from sklearn.ensemble import RandomForestRegressor
         from sklearn.model_selection import cross_val_score
 
-        X_baseline = df[['longitude', 'latitude']]
-        y = df['median_house_value']
+        X_baseline = df[["longitude", "latitude"]]
+        y = df["median_house_value"]
 
         baseline_model = RandomForestRegressor(n_estimators=50, random_state=42)
         baseline_score = cross_val_score(
-            baseline_model, X_baseline, y, cv=3, scoring='neg_mean_absolute_error'
+            baseline_model, X_baseline, y, cv=3, scoring="neg_mean_absolute_error"
         ).mean()
 
         # Add clustering features (simplified - you'd use your RBFSampler)
         from sklearn.cluster import KMeans
+
         kmeans = KMeans(n_clusters=5, random_state=42)
-        df['cluster'] = kmeans.fit_predict(X_baseline)
+        df["cluster"] = kmeans.fit_predict(X_baseline)
 
         # One-hot encode clusters
-        cluster_dummies = pd.get_dummies(df['cluster'], prefix='cluster')
+        cluster_dummies = pd.get_dummies(df["cluster"], prefix="cluster")
         X_enhanced = pd.concat([X_baseline, cluster_dummies], axis=1)
 
         enhanced_model = RandomForestRegressor(n_estimators=50, random_state=42)
         enhanced_score = cross_val_score(
-            enhanced_model, X_enhanced, y, cv=3, scoring='neg_mean_absolute_error'
+            enhanced_model, X_enhanced, y, cv=3, scoring="neg_mean_absolute_error"
         ).mean()
 
         # Enhanced should be reasonable (with synthetic data, clustering may not always help)
@@ -266,7 +269,9 @@ class TestFeatureEngineeringRealistic:
 
         improvement_pct = ((enhanced_score - baseline_score) / abs(baseline_score)) * 100
         print(f"\n✅ Baseline MAE: {-baseline_score:.2f}, Enhanced MAE: {-enhanced_score:.2f}")
-        print(f"   Improvement: {improvement_pct:+.1f}% (clustering {'helped' if improvement_pct > 0 else 'neutral/negative on synthetic data'})")
+        print(
+            f"   Improvement: {improvement_pct:+.1f}% (clustering {'helped' if improvement_pct > 0 else 'neutral/negative on synthetic data'})"
+        )
 
     @pytest.mark.performance
     def test_feature_engineering_scales_linearly(self):
@@ -282,7 +287,7 @@ class TestFeatureEngineeringRealistic:
         results = []
         for n_rows in [1000, 5000, 10000]:
             df = TestDataGenerator.generate_realistic_housing_data(n_rows, seed=42)
-            X = df[['longitude', 'latitude']]
+            X = df[["longitude", "latitude"]]
 
             start = time.time()
             kmeans = KMeans(n_clusters=10, random_state=42, n_init=10)
@@ -315,27 +320,25 @@ class TestSegregationRealistic:
         df = TestDataGenerator.generate_realistic_housing_data(1000)
 
         # Create bins for stratification (price ranges)
-        df['price_bin'] = pd.qcut(df['median_house_value'], q=5, labels=False)
+        df["price_bin"] = pd.qcut(df["median_house_value"], q=5, labels=False)
 
         # Stratified split
         from sklearn.model_selection import train_test_split
+
         train_df, test_df = train_test_split(
-            df,
-            test_size=0.2,
-            stratify=df['price_bin'],
-            random_state=42
+            df, test_size=0.2, stratify=df["price_bin"], random_state=42
         )
 
         # Check distributions match
-        train_dist = train_df['price_bin'].value_counts(normalize=True).sort_index()
-        test_dist = test_df['price_bin'].value_counts(normalize=True).sort_index()
+        train_dist = train_df["price_bin"].value_counts(normalize=True).sort_index()
+        test_dist = test_df["price_bin"].value_counts(normalize=True).sort_index()
 
         # Should be similar (within 5% for each bin)
         for bin_id in train_dist.index:
             diff = abs(train_dist[bin_id] - test_dist[bin_id])
             assert diff < 0.05, f"Bin {bin_id}: {diff:.1%} difference"
 
-        print(f"\n✅ Stratified split: distributions match within 5%")
+        print("\n✅ Stratified split: distributions match within 5%")
 
     def test_no_data_leakage_temporal_split(self):
         """
@@ -348,7 +351,7 @@ class TestSegregationRealistic:
         df = TestDataGenerator.generate_realistic_housing_data(1000)
 
         # Add temporal component (housing age as proxy for time)
-        df = df.sort_values('housing_median_age')
+        df = df.sort_values("housing_median_age")
 
         # Temporal split (80/20)
         split_idx = int(len(df) * 0.8)
@@ -356,9 +359,9 @@ class TestSegregationRealistic:
         test_df = df.iloc[split_idx:]
 
         # Verify temporal order maintained
-        assert train_df['housing_median_age'].max() <= test_df['housing_median_age'].min()
+        assert train_df["housing_median_age"].max() <= test_df["housing_median_age"].min()
 
-        print(f"\n✅ Temporal split: no future data in training set")
+        print("\n✅ Temporal split: no future data in training set")
 
 
 class TestPipelineIntegration:
@@ -384,27 +387,38 @@ class TestPipelineIntegration:
 
         # Stage 2: Feature Engineering (simplified)
         from sklearn.cluster import KMeans
+
         kmeans = KMeans(n_clusters=5, random_state=42)
-        df_clean['cluster'] = kmeans.fit_predict(df_clean[['longitude', 'latitude']])
+        df_clean["cluster"] = kmeans.fit_predict(df_clean[["longitude", "latitude"]])
 
         # Stage 3: Split
         from sklearn.model_selection import train_test_split
-        features = ['longitude', 'latitude', 'housing_median_age', 'total_rooms',
-                    'total_bedrooms', 'population', 'households', 'median_income', 'cluster']
-        X = df_clean[features]
-        y = df_clean['median_house_value']
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
+        features = [
+            "longitude",
+            "latitude",
+            "housing_median_age",
+            "total_rooms",
+            "total_bedrooms",
+            "population",
+            "households",
+            "median_income",
+            "cluster",
+        ]
+        X = df_clean[features]
+        y = df_clean["median_house_value"]
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
         # Stage 4: Train
         from sklearn.ensemble import RandomForestRegressor
+
         model = RandomForestRegressor(n_estimators=50, random_state=42)
         model.fit(X_train, y_train)
 
         # Stage 5: Evaluate
         from sklearn.metrics import mean_absolute_error, r2_score
+
         y_pred = model.predict(X_test)
         mae = mean_absolute_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
@@ -419,7 +433,7 @@ class TestPipelineIntegration:
 
         print(f"\n✅ End-to-end pipeline: MAE={mae:.2f}, R²={r2:.3f}")
         if r2 < 0:
-            print(f"   Note: Negative R² expected with small synthetic data (500 rows)")
+            print("   Note: Negative R² expected with small synthetic data (500 rows)")
 
     @pytest.mark.performance
     def test_pipeline_memory_usage(self):
@@ -430,8 +444,9 @@ class TestPipelineIntegration:
         - Large datasets can cause OOM
         - Need to verify memory-efficient processing
         """
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         mem_before = process.memory_info().rss / (1024 * 1024)  # MB
@@ -441,8 +456,9 @@ class TestPipelineIntegration:
         df_clean = df.fillna(df.median(numeric_only=True))
 
         from sklearn.cluster import MiniBatchKMeans
+
         kmeans = MiniBatchKMeans(n_clusters=10, random_state=42, batch_size=1000)
-        df_clean['cluster'] = kmeans.fit_predict(df_clean[['longitude', 'latitude']])
+        df_clean["cluster"] = kmeans.fit_predict(df_clean[["longitude", "latitude"]])
 
         mem_after = process.memory_info().rss / (1024 * 1024)  # MB
         mem_used = mem_after - mem_before
@@ -456,6 +472,7 @@ class TestPipelineIntegration:
 # ============================================================================
 # Pytest Configuration
 # ============================================================================
+
 
 def pytest_configure(config):
     """Register custom markers."""
