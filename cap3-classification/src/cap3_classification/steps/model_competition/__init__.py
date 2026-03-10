@@ -1,0 +1,1 @@
+"""Model competition step."""

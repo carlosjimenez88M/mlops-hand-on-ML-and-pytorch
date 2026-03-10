@@ -1,0 +1,82 @@
+name: cap3 Classification CI
+
+on:
+  pull_request:
+    paths:
+      - "cap3-classification/**"
+      - ".github/workflows/cap3-classification-ci.yml"
+  push:
+    branches: [main, master]
+    paths:
+      - "cap3-classification/**"
+      - ".github/workflows/cap3-classification-ci.yml"
+  workflow_dispatch:
+
+env:
+  WORKING_DIR: cap3-classification
+  PYTHON_VERSION: "3.12"
+  WANDB_MODE: disabled
+
+jobs:
+  quality-and-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: uv sync --extra dev
+
+      - name: Ruff lint
+        working-directory: ${{ env.WORKING_DIR }}
+        run: uv run ruff check src tests api
+
+      - name: Ruff format check
+        working-directory: ${{ env.WORKING_DIR }}
+        run: uv run ruff format --check src tests api
+
+      - name: Run unit and API tests
+        working-directory: ${{ env.WORKING_DIR }}
+        run: uv run pytest tests api/tests --cov=src/cap3_classification --cov=api/app --cov-report=term-missing
+
+      - name: Offline smoke pipeline
+        working-directory: ${{ env.WORKING_DIR }}
+        env:
+          WANDB_MODE: disabled
+          MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+          MLFLOW_REGISTRY_URI: sqlite:///mlflow.db
+        run: |
+          uv run mlflow run . --env-manager local -P pipeline_overrides='main.execute_steps=["01_ingest","02_validate","03_feature_engineering","04_split","05_model_competition","06_sweep","07_register"] dataset.fetch_strategy=fallback_only dataset.primary_source=digits wandb.mode=disabled sweep.offline_runs=3 competition.candidate_models=["dummy_most_frequent","sgd_classifier","random_forest","torch_mlp"]'
+
+      - name: Validate registration outputs
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          test -f artifacts/serving/model_info.json
+          test -f models/registered/latest_model.joblib
+
+  docker-api:
+    runs-on: ubuntu-latest
+    needs: quality-and-tests
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build API test image
+        working-directory: ${{ env.WORKING_DIR }}
+        run: docker build -f api/Dockerfile --target test -t cap3-classification-api:test .
+
+      - name: Run API tests in Docker
+        run: docker run --rm cap3-classification-api:test

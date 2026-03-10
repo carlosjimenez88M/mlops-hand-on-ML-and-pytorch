@@ -1,0 +1,35 @@
+name: step_sweep
+
+entry_points:
+  main:
+    parameters:
+      train_path: {type: str}
+      validation_path: {type: str}
+      competition_summary_path: {type: str}
+      output_path: {type: str}
+      sweep_config_path: {type: str}
+      method: {type: str}
+      metric_name: {type: str}
+      goal: {type: str}
+      offline_runs: {type: int}
+      online_runs: {type: int}
+      random_state: {type: int}
+      target_column: {type: str}
+      wandb_project: {type: str}
+      wandb_mode: {type: str}
+    command: >-
+      python main.py
+      --train_path {train_path}
+      --validation_path {validation_path}
+      --competition_summary_path {competition_summary_path}
+      --output_path {output_path}
+      --sweep_config_path {sweep_config_path}
+      --method {method}
+      --metric_name {metric_name}
+      --goal {goal}
+      --offline_runs {offline_runs}
+      --online_runs {online_runs}
+      --random_state {random_state}
+      --target_column {target_column}
+      --wandb_project {wandb_project}
+      --wandb_mode {wandb_mode}

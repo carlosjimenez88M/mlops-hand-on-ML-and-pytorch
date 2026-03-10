@@ -1,0 +1,17 @@
+name: step_feature_engineering
+
+entry_points:
+  main:
+    parameters:
+      input_path: {type: str}
+      output_path: {type: str}
+      metadata_path: {type: str}
+      activation_threshold: {type: float}
+      target_column: {type: str}
+    command: >-
+      python main.py
+      --input_path {input_path}
+      --output_path {output_path}
+      --metadata_path {metadata_path}
+      --activation_threshold {activation_threshold}
+      --target_column {target_column}

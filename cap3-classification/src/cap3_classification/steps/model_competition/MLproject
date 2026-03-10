@@ -1,0 +1,23 @@
+name: step_model_competition
+
+entry_points:
+  main:
+    parameters:
+      train_path: {type: str}
+      validation_path: {type: str}
+      target_column: {type: str}
+      metric_name: {type: str}
+      results_path: {type: str}
+      best_model_summary_path: {type: str}
+      candidate_models: {type: str}
+      random_state: {type: int}
+    command: >-
+      python main.py
+      --train_path {train_path}
+      --validation_path {validation_path}
+      --target_column {target_column}
+      --metric_name {metric_name}
+      --results_path {results_path}
+      --best_model_summary_path {best_model_summary_path}
+      --candidate_models {candidate_models}
+      --random_state {random_state}

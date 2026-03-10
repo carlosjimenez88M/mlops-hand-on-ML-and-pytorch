@@ -1,0 +1,65 @@
+[project]
+name = "cap3-classification-mlops"
+version = "0.1.0"
+description = "Modular local-first MLOps pipeline for chapter 3 classification"
+authors = [
+    { name = "Carlos Daniel Jimenez", email = "danieljimenez88m@gmail.com" }
+]
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi>=0.115.6",
+    "httpx>=0.28.1",
+    "joblib>=1.4.2",
+    "mlflow>=3.4.0",
+    "numpy>=2.2.1",
+    "omegaconf>=2.3.0",
+    "pandas>=2.2.3",
+    "pyarrow>=18.1.0",
+    "pydantic>=2.10.4",
+    "pydantic-settings>=2.7.1",
+    "python-dotenv>=1.0.1",
+    "pyyaml>=6.0.2",
+    "ruff>=0.8.4",
+    "scikit-learn>=1.6.1",
+    "scipy>=1.15.3",
+    "torch>=2.8.0",
+    "uvicorn[standard]>=0.34.0",
+    "wandb>=0.22.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=75.6.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "api/tests"]
+python_files = ["test_*.py"]
+addopts = "-q --strict-markers --tb=short"
+
+[tool.coverage.run]
+source = ["src/cap3_classification", "api/app"]
+omit = ["tests/*", "api/tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B"]
+ignore = ["E501"]

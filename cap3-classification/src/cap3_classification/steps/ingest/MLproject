@@ -1,0 +1,23 @@
+name: step_ingest
+
+entry_points:
+  main:
+    parameters:
+      primary_source: {type: str}
+      fallback_source: {type: str}
+      fetch_strategy: {type: str}
+      max_samples: {type: int}
+      random_state: {type: int}
+      target_column: {type: str}
+      raw_dataset_path: {type: str}
+      metadata_path: {type: str}
+    command: >-
+      python main.py
+      --primary_source {primary_source}
+      --fallback_source {fallback_source}
+      --fetch_strategy {fetch_strategy}
+      --max_samples {max_samples}
+      --random_state {random_state}
+      --target_column {target_column}
+      --raw_dataset_path {raw_dataset_path}
+      --metadata_path {metadata_path}

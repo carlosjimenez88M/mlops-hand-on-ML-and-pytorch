@@ -1,0 +1,19 @@
+name: step_validate
+
+entry_points:
+  main:
+    parameters:
+      input_path: {type: str}
+      output_path: {type: str}
+      report_path: {type: str}
+      min_rows: {type: int}
+      min_features: {type: int}
+      target_column: {type: str}
+    command: >-
+      python main.py
+      --input_path {input_path}
+      --output_path {output_path}
+      --report_path {report_path}
+      --min_rows {min_rows}
+      --min_features {min_features}
+      --target_column {target_column}

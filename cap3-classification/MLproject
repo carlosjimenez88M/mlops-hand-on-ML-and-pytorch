@@ -1,0 +1,7 @@
+name: cap3_classification
+
+entry_points:
+  main:
+    parameters:
+      pipeline_overrides: {type: str, default: ""}
+    command: "python main.py ${pipeline_overrides}"

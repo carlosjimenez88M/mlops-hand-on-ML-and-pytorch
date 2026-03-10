@@ -1,0 +1,25 @@
+name: step_split
+
+entry_points:
+  main:
+    parameters:
+      input_path: {type: str}
+      train_path: {type: str}
+      validation_path: {type: str}
+      test_path: {type: str}
+      train_size: {type: float}
+      validation_size: {type: float}
+      test_size: {type: float}
+      random_state: {type: int}
+      target_column: {type: str}
+    command: >-
+      python main.py
+      --input_path {input_path}
+      --train_path {train_path}
+      --validation_path {validation_path}
+      --test_path {test_path}
+      --train_size {train_size}
+      --validation_size {validation_size}
+      --test_size {test_size}
+      --random_state {random_state}
+      --target_column {target_column}

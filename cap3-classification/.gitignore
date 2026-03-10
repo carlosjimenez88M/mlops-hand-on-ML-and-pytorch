@@ -1,0 +1,16 @@
+.venv/
+.uv-cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+*.egg-info/
+
+artifacts/
+data/
+models/
+reports/
+mlruns/
+mlflow.db
+wandb/
+src/cap3_classification/steps/**/wandb/

@@ -1,0 +1,115 @@
+main:
+  project_name: "cap3-classification"
+  experiment_name: "chapter3_local_first_pipeline"
+  execute_steps:
+    - "01_ingest"
+    - "02_validate"
+    - "03_feature_engineering"
+    - "04_split"
+    - "05_model_competition"
+    - "06_sweep"
+    - "07_register"
+
+paths:
+  artifacts_dir: "artifacts"
+  reports_dir: "reports"
+  data_dir: "data"
+  models_dir: "models"
+
+dataset:
+  primary_source: "mnist"
+  fallback_source: "digits"
+  fetch_strategy: "auto"
+  max_samples: 12000
+  random_state: 42
+  target_column: "target"
+  raw_dataset_path: "data/01_raw/dataset.parquet"
+  metadata_path: "artifacts/dataset/metadata.json"
+
+validation:
+  input_path: "${dataset.raw_dataset_path}"
+  output_path: "data/02_validated/dataset.parquet"
+  report_path: "reports/validation/validation_report.json"
+  min_rows: 100
+  min_features: 64
+  target_column: "${dataset.target_column}"
+
+features:
+  input_path: "${validation.output_path}"
+  output_path: "data/03_features/dataset_features.parquet"
+  metadata_path: "artifacts/features/feature_manifest.json"
+  activation_threshold: 8.0
+  target_column: "${dataset.target_column}"
+
+split:
+  input_path: "${features.output_path}"
+  train_path: "data/04_split/train.parquet"
+  validation_path: "data/04_split/validation.parquet"
+  test_path: "data/04_split/test.parquet"
+  train_size: 0.7
+  validation_size: 0.15
+  test_size: 0.15
+  random_state: 42
+  target_column: "${dataset.target_column}"
+
+competition:
+  train_path: "${split.train_path}"
+  validation_path: "${split.validation_path}"
+  target_column: "${dataset.target_column}"
+  metric_name: "macro_f1"
+  results_path: "artifacts/model_competition/results.json"
+  best_model_summary_path: "artifacts/model_competition/best_model.json"
+  random_state: "${split.random_state}"
+  candidate_models:
+    - "dummy_most_frequent"
+    - "sgd_classifier"
+    - "linear_svc"
+    - "knn"
+    - "random_forest"
+    - "torch_mlp"
+
+sweep:
+  train_path: "${split.train_path}"
+  validation_path: "${split.validation_path}"
+  competition_summary_path: "${competition.best_model_summary_path}"
+  output_path: "artifacts/sweeps/best_params.yaml"
+  sweep_config_path: "artifacts/sweeps/generated_sweep.yaml"
+  method: "bayes"
+  metric_name: "macro_f1"
+  goal: "maximize"
+  offline_runs: 12
+  online_runs: 25
+  random_state: 42
+  target_column: "${dataset.target_column}"
+
+registration:
+  train_path: "${split.train_path}"
+  validation_path: "${split.validation_path}"
+  test_path: "${split.test_path}"
+  best_params_path: "${sweep.output_path}"
+  registered_model_name: "chapter3_digit_classifier"
+  model_stage: "Staging"
+  target_column: "${dataset.target_column}"
+  local_model_output_path: "models/registered/latest_model.joblib"
+  serving_metadata_path: "artifacts/serving/model_info.json"
+
+monitoring:
+  reference_path: "${split.train_path}"
+  current_path: "${split.test_path}"
+  report_path: "reports/drift/drift_report.json"
+  max_psi: 0.2
+  target_column: "${dataset.target_column}"
+
+wandb:
+  project: "cap3-classification"
+  entity: null
+  mode: "${oc.env:WANDB_MODE,offline}"
+  tags:
+    - "cap3"
+    - "classification"
+    - "mlops"
+
+mlflow:
+  tracking_uri: "${oc.env:MLFLOW_TRACKING_URI,sqlite:///mlflow.db}"
+  registry_uri: "${oc.env:MLFLOW_REGISTRY_URI,sqlite:///mlflow.db}"
+  experiment_name: "${oc.env:MLFLOW_EXPERIMENT_NAME,cap3_classification}"

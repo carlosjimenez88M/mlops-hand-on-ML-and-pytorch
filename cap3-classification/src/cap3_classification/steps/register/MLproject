@@ -1,0 +1,27 @@
+name: step_register
+
+entry_points:
+  main:
+    parameters:
+      train_path: {type: str}
+      validation_path: {type: str}
+      test_path: {type: str}
+      best_params_path: {type: str}
+      registered_model_name: {type: str}
+      model_stage: {type: str}
+      target_column: {type: str}
+      local_model_output_path: {type: str}
+      serving_metadata_path: {type: str}
+      wandb_project: {type: str}
+    command: >-
+      python main.py
+      --train_path {train_path}
+      --validation_path {validation_path}
+      --test_path {test_path}
+      --best_params_path {best_params_path}
+      --registered_model_name {registered_model_name}
+      --model_stage {model_stage}
+      --target_column {target_column}
+      --local_model_output_path {local_model_output_path}
+      --serving_metadata_path {serving_metadata_path}
+      --wandb_project {wandb_project}
